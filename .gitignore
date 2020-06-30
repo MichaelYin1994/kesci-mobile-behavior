@@ -1,0 +1,9 @@
+*.csv
+*.pkl
+*.zip
+*.npz
+
+*.pyc
+*.txt
+*.png
+*.pdf
