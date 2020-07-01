@@ -33,7 +33,8 @@ def read_person_data_csv(person_data_name):
 def processing_train_data():
     PATH = ".//data//Training Set//train_data//"
     train_label = read_train_label()
-    train_label["file_name"] = train_label["file_name"].apply(lambda x: x[:-4])
+    train_label["id"] = train_label["file_name"].apply(lambda x: x[:-4])
+    train_label.drop("file_name", axis=1, inplace=True)
 
     person_fold_names = os.listdir(PATH)
     person_fold_names = sorted(person_fold_names, key=lambda x: (x[0], int(x[1:])))
@@ -57,6 +58,13 @@ def processing_train_data():
 
 
 def processing_valid_data():
+    def prefix_zero_padding(x):
+        if len(x) == 1:
+            return "00" + x
+        elif len(x) == 2:
+            return "0" + x
+        return x
+
     PATH = ".//data//Validation Set//data//"
     person_data_names = os.listdir(PATH)
     person_data_names = sorted(person_data_names, key=lambda x: int(x[:-4]))
@@ -65,6 +73,8 @@ def processing_valid_data():
     for name in person_data_names:
         valid_data.append(read_person_data_csv(PATH + name))
         valid_index.append(name[:-4])
+
+    valid_index = list(map(prefix_zero_padding, valid_index))
     valid = [valid_index, valid_data]
 
     file_processor = LoadSave()
@@ -73,4 +83,4 @@ def processing_valid_data():
 
 if __name__ == "__main__":
     processing_train_data()
-    processing_valid_data()
+    # processing_valid_data()
