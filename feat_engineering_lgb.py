@@ -114,10 +114,9 @@ def stat_feat_seq(seq=None):
     return df
 
 
-
 if __name__ == "__main__":
-    # train_data = load_data("train.pkl")
-    # test_data = load_data("test.pkl")
+    train_data = load_data("train.pkl")
+    test_data = load_data("test.pkl")
 
     total_data = train_data + test_data
     fragment_id = [seq["fragment_id"].unique()[0] for seq in total_data]
@@ -131,6 +130,7 @@ if __name__ == "__main__":
     ##########################################################################
     # Step 1: Basic stat feature engineering
     tmp = stat_feat_seq(seq)
+
     with mp.Pool(processes=mp.cpu_count()) as p:
         tmp = list(tqdm(p.imap(stat_feat_seq, total_data),
                         total=len(total_data)))
@@ -154,4 +154,4 @@ if __name__ == "__main__":
                                                                          n_folds=n_folds)
     clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
                            target_name="behavior_id", id_name="fragment_id",
-                           sub_str_field="lgb_{}".format(n_folds))
+                           sub_str_field="lgb_{}".format(n_folds), save_oof=False)

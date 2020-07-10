@@ -290,7 +290,7 @@ def lightgbm_classifier_training(train_df=None, test_df=None, n_folds=5,
                   "reg_lambda": 0.02,
                   "n_jobs": -1,
                   "n_estimators": 5000,
-                  "random_state": 777,
+                  "random_state": 255,
                   "verbose": -1}
     id_name = kwargs.pop("id_name", "fragment_id")
     target_name = kwargs.pop("target_name", "behavior_id")
