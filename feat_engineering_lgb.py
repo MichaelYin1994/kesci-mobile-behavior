@@ -45,46 +45,63 @@ def stat_feat_seq(seq=None):
     """Basic feature engineering for each dim"""
     feat_vals, feat_names = [], []
 
+    # Preparing: mod quantile feats
+    # https://github.com/ycd2016/xw2020_cnn_baseline/blob/master/baseline.py
+    seq["mod"] = np.sqrt(seq["acc_x"]**2 + seq["acc_y"]**2 + seq["acc_z"]**2)
+    seq["modg"] = np.sqrt(seq["acc_x"]**2 + seq["acc_y"]**2 + seq["acc_z"]**2)
+
     # Step 1: Basic stat features of each column
     stat_feat_fcns = [np.mean, np.ptp, np.std, np.min, np.max, np.sum]
-    for col_name in ["acc_x", "acc_y", "acc_z", "acc_xg", "acc_yg", "acc_zg"]:
+    for col_name in ["acc_x", "acc_y", "acc_z", "acc_xg", "acc_yg", "acc_zg", "mod", "modg"]:
         for fcn in stat_feat_fcns:
             feat_names.append("stat_{}_{}".format(col_name, fcn.__name__))
             feat_vals.append(fcn(seq[col_name]))
 
     # Step 2: Quantile features
     feat_name = "acc_x"
-    quantile = np.linspace(0.02, 0.99, 15)
+    quantile = np.linspace(0.02, 0.99, 20)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                            feat_name=feat_name))
 
     feat_name = "acc_y"
-    quantile = np.linspace(0.02, 0.99, 15)
+    quantile = np.linspace(0.02, 0.99, 20)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                            feat_name=feat_name))
 
     feat_name = "acc_z"
-    quantile = np.linspace(0.02, 0.99, 15)
+    quantile = np.linspace(0.02, 0.99, 20)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                            feat_name=feat_name))
 
     feat_name = "acc_xg"
-    quantile = np.linspace(0.02, 0.99, 15)
+    quantile = np.linspace(0.02, 0.99, 20)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                            feat_name=feat_name))
 
     feat_name = "acc_yg"
-    quantile = np.linspace(0.02, 0.99, 15)
+    quantile = np.linspace(0.02, 0.99, 20)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                            feat_name=feat_name))
 
     feat_name = "acc_zg"
-    quantile = np.linspace(0.02, 0.99, 15)
+    quantile = np.linspace(0.02, 0.99, 20)
+    feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
+    feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
+                                           feat_name=feat_name))
+
+    feat_name = "mod"
+    quantile = np.linspace(0.02, 0.99, 20)
+    feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
+    feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
+                                           feat_name=feat_name))
+
+    feat_name = "modg"
+    quantile = np.linspace(0.02, 0.99, 20)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                            feat_name=feat_name))
@@ -129,29 +146,35 @@ if __name__ == "__main__":
 
     ##########################################################################
     # Step 1: Basic stat feature engineering
+    # ------------------------
     tmp = stat_feat_seq(seq)
-
     with mp.Pool(processes=mp.cpu_count()) as p:
         tmp = list(tqdm(p.imap(stat_feat_seq, total_data),
                         total=len(total_data)))
     stat_feats = pd.concat(tmp, axis=0, ignore_index=True)
     stat_feats["fragment_id"] = fragment_id
 
+    # Step 2: Loading embedding
+    # ------------------------
+    file_processor = LoadSave()
+    embedding_feats = file_processor.load_data(path=".//data_tmp//embedding_df.pkl")
+
     ##########################################################################
-    total_feats = pd.merge(total_feats, stat_feats)
+    total_feats = pd.merge(total_feats, stat_feats, on="fragment_id", how="left")
+    total_feats = pd.merge(total_feats, embedding_feats, on="fragment_id", how="left")
 
     train_feats = total_feats[total_feats["behavior_id"].notnull()]
     test_feats = total_feats[total_feats["behavior_id"].isnull()].drop("behavior_id", axis=1).reset_index(drop=True)
 
-    n_folds = 5
+    n_folds = 10
     scores, importances, oof_pred, y_pred = lightgbm_classifier_training(train_df=train_feats, 
-                                                                         test_df=test_feats,
-                                                                         id_name="fragment_id",
-                                                                         target_name="behavior_id",
-                                                                         stratified=True, 
-                                                                         shuffle=True,
-                                                                         n_classes=19,
-                                                                         n_folds=n_folds)
+                                                                          test_df=test_feats,
+                                                                          id_name="fragment_id",
+                                                                          target_name="behavior_id",
+                                                                          stratified=True, 
+                                                                          shuffle=True,
+                                                                          n_classes=19,
+                                                                          n_folds=n_folds)
     clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
                            target_name="behavior_id", id_name="fragment_id",
                            sub_str_field="lgb_{}".format(n_folds), save_oof=False)

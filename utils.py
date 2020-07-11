@@ -213,11 +213,8 @@ def clf_pred_to_submission(y_valid=None, y_pred=None, score=None, save_oof=True,
                            sub_str_field=""):
     """Save the oof prediction results to the local path."""
     sub_ind = len(os.listdir(".//submissions//")) + 1
-    file_name = "{}_{}_tf1_{}_tacc_{}_tc_{}_vf1_{}_vacc_{}_vc_{}".format(
+    file_name = "{}_{}_vf1_{}_vacc_{}_vc_{}".format(
         sub_ind, sub_str_field,
-        str(round(score["train_f1"].mean(), 4)).split(".")[1],
-        str(round(score["train_acc"].mean(), 4)).split(".")[1],
-        str(round(score["train_custom"].mean(), 4)).split(".")[1],
         str(round(score["valid_f1"].mean(), 4)).split(".")[1],
         str(round(score["valid_acc"].mean(), 4)).split(".")[1],
         str(round(score["valid_custom"].mean(), 4)).split(".")[1]
