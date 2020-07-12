@@ -125,16 +125,17 @@ def build_model_baseline(verbose=False, is_compile=True, **kwargs):
                activation='relu',
                padding='same')(X)
     X = MaxPooling2D()(X)
+
     X = Conv2D(filters=256,
                kernel_size=(3, 3),
                activation='relu',
                padding='same')(X)
     X = Conv2D(filters=512,
-               kernel_size=(3, 3),
+               kernel_size=(5, 5),
                activation='relu',
                padding='same')(X)
     X = GlobalMaxPooling2D()(X)
-    X = Dropout(0.3)(X)
+    X = Dropout(0.2)(X)
     X = Dense(19, activation='softmax')(X)
 
     model = Model([input_layer], X)
@@ -142,7 +143,7 @@ def build_model_baseline(verbose=False, is_compile=True, **kwargs):
         model.summary()
     if is_compile:
         model.compile(loss="categorical_crossentropy",
-                      optimizer=Adam(0.003), metrics=['acc'])
+                      optimizer=Adam(0.002), metrics=['acc'])
     return model
 
 
@@ -180,34 +181,34 @@ def build_model(verbose=False, is_compile=True, **kwargs):
 
 
 if __name__ == "__main__":
-    train_data = load_data("train.pkl")
-    test_data = load_data("test.pkl")
+    # train_data = load_data("train.pkl")
+    # test_data = load_data("test.pkl")
 
-    total_data = train_data + test_data
-    fragment_id = [seq["fragment_id"].unique()[0] for seq in total_data]
-    labels = [seq["behavior_id"].unique()[0] for seq in train_data]
-    seq = total_data[14]
+    # total_data = train_data + test_data
+    # fragment_id = [seq["fragment_id"].unique()[0] for seq in total_data]
+    # labels = [seq["behavior_id"].unique()[0] for seq in train_data]
+    # seq = total_data[14]
 
-    total_feats = pd.DataFrame(None)
-    total_feats["fragment_id"] = fragment_id
-    total_feats["behavior_id"] = labels + [np.nan] * len(test_data)
-    total_feats["is_train"] = [True] * len(train_data) + [False] * len(test_data)
+    # total_feats = pd.DataFrame(None)
+    # total_feats["fragment_id"] = fragment_id
+    # total_feats["behavior_id"] = labels + [np.nan] * len(test_data)
+    # total_feats["is_train"] = [True] * len(train_data) + [False] * len(test_data)
 
-    SENDING_TRAINING_INFO = False
-    send_msg_to_dingtalk("++++++++++++++++++++++++++++", SENDING_TRAINING_INFO)
-    INFO_TEXT = "[BEGIN]#Training: {}, #Testing: {}, at: {}".format(
-        len(total_feats.query("is_train == True")),
-        len(total_feats.query("is_train == False")),
-        str(datetime.now())[:-7])
-    send_msg_to_dingtalk(info_text=INFO_TEXT, is_send_msg=SENDING_TRAINING_INFO)
+    # SENDING_TRAINING_INFO = False
+    # send_msg_to_dingtalk("++++++++++++++++++++++++++++", SENDING_TRAINING_INFO)
+    # INFO_TEXT = "[BEGIN]#Training: {}, #Testing: {}, at: {}".format(
+    #     len(total_feats.query("is_train == True")),
+    #     len(total_feats.query("is_train == False")),
+    #     str(datetime.now())[:-7])
+    # send_msg_to_dingtalk(info_text=INFO_TEXT, is_send_msg=SENDING_TRAINING_INFO)
 
-    ##########################################################################
-    # Step 1: Interpolate all the sequence to the fixed length
-    # ------------------------
-    with mp.Pool(processes=mp.cpu_count()) as p:
-        tmp = list(tqdm(p.imap(preprocessing_seq, total_data),
-                        total=len(total_data)))
-    train_seq, test_seq = np.array(tmp[:len(train_data)]), np.array(tmp[len(train_data):])
+    # ##########################################################################
+    # # Step 1: Interpolate all the sequence to the fixed length
+    # # ------------------------
+    # with mp.Pool(processes=mp.cpu_count()) as p:
+    #     tmp = list(tqdm(p.imap(preprocessing_seq, total_data),
+    #                     total=len(total_data)))
+    # train_seq, test_seq = np.array(tmp[:len(train_data)]), np.array(tmp[len(train_data):])
 
     # Preparing and training models
     #########################################################################
@@ -234,7 +235,6 @@ if __name__ == "__main__":
                                 verbose=1,
                                 patience=20,
                                 restore_best_weights=True)
-    remote_monitor = RemoteMonitorDingTalk(is_send_msg=SENDING_TRAINING_INFO)
 
     # Training the NN classifier
     send_msg_to_dingtalk("\n[INFO]Start training NeuralNets CLASSIFIER at: {}".format(
@@ -255,7 +255,7 @@ if __name__ == "__main__":
         model.fit(x=[d_train],
                   y=t_train,
                   validation_data=([d_valid], t_valid),
-                  callbacks=[early_stop, remote_monitor],
+                  callbacks=[early_stop],
                   batch_size=BATCH_SIZE,
                   epochs=N_EPOCHS,
                   verbose=2)
@@ -302,10 +302,10 @@ if __name__ == "__main__":
     total_f1 = f1_score(np.array(labels).reshape(-1, 1),
                         oof_pred_label.reshape((-1, 1)), average="macro")
     total_acc = accuracy_score(np.array(labels).reshape(-1, 1),
-                                oof_pred_label.reshape((-1, 1)))
+                               oof_pred_label.reshape((-1, 1)))
     total_custom = np.apply_along_axis(
             acc_combo, 1, np.hstack((np.array(labels).reshape((-1, 1)),
-                                      oof_pred_label.reshape((-1, 1))))).mean()
+                                     oof_pred_label.reshape((-1, 1))))).mean()
 
     INFO_TEXT = "[INFO] total valid f1: {:.5f}, acc: {:.5f}, custom: {:.5f}".format(
         total_f1, total_acc, total_custom)
