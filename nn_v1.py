@@ -144,7 +144,7 @@ def build_model_baseline(verbose=False, is_compile=True, **kwargs):
         model.summary()
     if is_compile:
         model.compile(loss="categorical_crossentropy",
-                      optimizer=Adam(0.002), metrics=['acc'])
+                      optimizer=Adam(0.001), metrics=['acc'])
     return model
 
 
@@ -194,7 +194,7 @@ def build_model(verbose=False, is_compile=True, **kwargs):
         model.summary()
     if is_compile:
         model.compile(loss="categorical_crossentropy",
-                      optimizer=Adam(0.002), metrics=['acc'])
+                      optimizer=Adam(0.001), metrics=['acc'])
     return model
 
 
@@ -249,10 +249,10 @@ if __name__ == "__main__":
     oof_pred = np.zeros((len(train_data), 19))
     y_pred = np.zeros((len(test_data), 19))
     early_stop = EarlyStopping(monitor='val_acc',
-                                mode='max',
-                                verbose=1,
-                                patience=20,
-                                restore_best_weights=True)
+                               mode='max',
+                               verbose=1,
+                               patience=20,
+                               restore_best_weights=True)
 
     # Training the NN classifier
     send_msg_to_dingtalk("\n[INFO]Start training NeuralNets CLASSIFIER at: {}".format(
@@ -279,11 +279,11 @@ if __name__ == "__main__":
                   verbose=2)
 
         train_pred_proba = model.predict(x=[d_train],
-                                          batch_size=BATCH_SIZE)
+                                         batch_size=BATCH_SIZE)
         valid_pred_proba = model.predict(x=[d_valid],
-                                          batch_size=BATCH_SIZE)
+                                         batch_size=BATCH_SIZE)
         y_pred_proba = model.predict(x=[test_seq],
-                                      batch_size=BATCH_SIZE)
+                                     batch_size=BATCH_SIZE)
         y_pred += y_pred_proba / N_FOLDS
 
         oof_pred[val_id] = valid_pred_proba
@@ -296,11 +296,11 @@ if __name__ == "__main__":
         train_f1 = f1_score(
             t_train_label, train_pred_label, average="macro")
         train_acc = accuracy_score(t_train_label,
-                                    train_pred_label)
+                                   train_pred_label)
         valid_f1 = f1_score(
             t_valid_label, valid_pred_label, average="macro")
         valid_acc = accuracy_score(t_valid_label,
-                                    valid_pred_label)
+                                   valid_pred_label)
 
         train_custom = np.apply_along_axis(
             acc_combo, 1, np.hstack((t_train_label, train_pred_label))).mean()
@@ -346,4 +346,4 @@ if __name__ == "__main__":
 
     clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
                            target_name="behavior_id", id_name="fragment_id",
-                           sub_str_field="lgb_{}".format(N_FOLDS), save_oof=False)
+                           sub_str_field="nn_{}".format(N_FOLDS), save_oof=False)
