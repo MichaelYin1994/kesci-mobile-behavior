@@ -10,11 +10,9 @@ import os
 import time
 import pickle
 import warnings
-from memory_profiler import profile
 from datetime import datetime
 from functools import wraps
 import matplotlib.pyplot as plt
-import seaborn as sns
 import pandas as pd
 from sklearn.metrics import roc_auc_score, f1_score, log_loss, accuracy_score
 from sklearn.metrics import mean_squared_error, mean_absolute_error
@@ -26,7 +24,6 @@ import lightgbm as lgb
 import xgboost as xgb
 
 warnings.filterwarnings('ignore')
-sns.set(style="ticks", font_scale=1.2, palette='deep', color_codes=True)
 ###############################################################################
 ###############################################################################
 def timefn(fcn):
@@ -227,7 +224,7 @@ def clf_pred_to_submission(y_valid=None, y_pred=None, score=None, save_oof=True,
         y_pred.drop([id_name], axis=1).values, axis=1)
     submission.to_csv(".//submissions//{}.csv".format(file_name),
                       header=True, index=False)
-    print("@Saving {} to the local.".format(file_name))
+    print("[INFO] Saving {} to the local.".format(file_name))
     # TODO: Print the ratio of classes
     # print("\n---------------------")
     # pos_precent = len(submission.query("y_pred == 1"))/len(submission) * 100
