@@ -23,7 +23,8 @@ from tensorflow.keras.layers import Bidirectional, GRU
 from tensorflow.keras.layers import Dropout, BatchNormalization, LayerNormalization
 from tensorflow.keras.layers import Dense, Embedding, LSTM, Bidirectional, Conv1D, Conv2D
 from tensorflow.keras.layers import Input, concatenate
-from tensorflow.keras.layers import  GlobalAveragePooling1D, GlobalMaxPooling1D, MaxPooling2D, GlobalMaxPooling2D
+from tensorflow.keras.layers import  GlobalAveragePooling1D, GlobalMaxPooling1D
+from tensorflow.keras.layers import MaxPooling2D, AveragePooling2D, GlobalMaxPooling2D, GlobalAveragePooling2D
 from tensorflow.keras import regularizers, constraints, optimizers, layers
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
@@ -148,67 +149,84 @@ def build_model_baseline(verbose=False, is_compile=True, **kwargs):
 
 
 def build_model(verbose=False, is_compile=True, **kwargs):
-    input_layer = Input(shape=(61, 8), name="input_layer")
+    input_layer = Input(shape=(61, 8))
 
-    conv_layer = Conv1D(64, kernel_size=4, padding="valid",
-                        kernel_initializer="he_uniform")(input_layer)
-    avg_pool_conv = GlobalAveragePooling1D()(conv_layer)
-    max_pool_conv = GlobalMaxPooling1D()(conv_layer)
+    X = tf.expand_dims(input_layer, -1)
+    X = Conv2D(filters=64,
+               kernel_size=(3, 3),
+               activation='relu',
+               padding='same')(X)
+    X = Conv2D(filters=128,
+               kernel_size=(3, 3),
+               activation='relu',
+               padding='same')(X)
+    
+    max_pool_x = MaxPooling2D(pool_size=(2, 2))(X)
+    avg_pool_x = AveragePooling2D(pool_size=(3, 2))(X)
 
-    gru_layer = Bidirectional(GRU(32, return_sequences=True))(input_layer)
-    avg_pool_gru = GlobalAveragePooling1D()(gru_layer)
-    max_pool_gru = GlobalMaxPooling1D()(gru_layer)
+    max_pool_x = Conv2D(filters=256,
+                        kernel_size=(3, 3),
+                        activation='relu',
+                        padding='same')(max_pool_x)
+    avg_pool_x = Conv2D(filters=256,
+                        kernel_size=(3, 3),
+                        activation='relu',
+                        padding='same')(avg_pool_x)
 
-    # Concate all layer
-    # -----------
-    layer_total = concatenate([avg_pool_conv,
-                               max_pool_conv,
-                               avg_pool_gru,
-                               max_pool_gru])
-    dense_layer = Dense(32, activation="relu")(layer_total)
-    dense_layer = BatchNormalization()(dense_layer)
-    dense_layer = Dropout(0.17)(dense_layer)
-    layer_pred = Dense(19, activation='softmax',
-                       name="output")(dense_layer)
+    # Concatenating the pooling layer
+    layer_pooling_0 = GlobalMaxPooling2D()(max_pool_x)
+    layer_pooling_1 = GlobalAveragePooling2D()(max_pool_x)
+    layer_pooling_2 = GlobalMaxPooling2D()(avg_pool_x)
+    layer_pooling_3 = GlobalAveragePooling2D()(avg_pool_x)
+    layer_pooling = concatenate([layer_pooling_0,
+                                 layer_pooling_1,
+                                 layer_pooling_2,
+                                 layer_pooling_3])
 
-    model = Model([input_layer], layer_pred)
+    # Output structure
+    layer_output = Dropout(0.3)(layer_pooling)
+    layer_output = Dense(128)(layer_output)
+    layer_output = Dropout(0.15)(layer_output)
+    layer_output = Dense(19, activation='softmax')(layer_output)
+
+    model = Model([input_layer], layer_output)
     if verbose:
         model.summary()
     if is_compile:
         model.compile(loss="categorical_crossentropy",
-                      optimizer=Adam(0.005), metrics=['acc'])
+                      optimizer=Adam(0.002), metrics=['acc'])
     return model
 
 
 if __name__ == "__main__":
-    # train_data = load_data("train.pkl")
-    # test_data = load_data("test.pkl")
+    train_data = load_data("train.pkl")
+    test_data = load_data("test.pkl")
 
-    # total_data = train_data + test_data
-    # fragment_id = [seq["fragment_id"].unique()[0] for seq in total_data]
-    # labels = [seq["behavior_id"].unique()[0] for seq in train_data]
-    # seq = total_data[14]
+    total_data = train_data + test_data
+    fragment_id = [seq["fragment_id"].unique()[0] for seq in total_data]
+    labels = [seq["behavior_id"].unique()[0] for seq in train_data]
+    seq = total_data[14]
 
-    # total_feats = pd.DataFrame(None)
-    # total_feats["fragment_id"] = fragment_id
-    # total_feats["behavior_id"] = labels + [np.nan] * len(test_data)
-    # total_feats["is_train"] = [True] * len(train_data) + [False] * len(test_data)
+    total_feats = pd.DataFrame(None)
+    total_feats["fragment_id"] = fragment_id
+    total_feats["behavior_id"] = labels + [np.nan] * len(test_data)
+    total_feats["is_train"] = [True] * len(train_data) + [False] * len(test_data)
 
-    # SENDING_TRAINING_INFO = False
-    # send_msg_to_dingtalk("++++++++++++++++++++++++++++", SENDING_TRAINING_INFO)
-    # INFO_TEXT = "[BEGIN]#Training: {}, #Testing: {}, at: {}".format(
-    #     len(total_feats.query("is_train == True")),
-    #     len(total_feats.query("is_train == False")),
-    #     str(datetime.now())[:-7])
-    # send_msg_to_dingtalk(info_text=INFO_TEXT, is_send_msg=SENDING_TRAINING_INFO)
+    SENDING_TRAINING_INFO = False
+    send_msg_to_dingtalk("++++++++++++++++++++++++++++", SENDING_TRAINING_INFO)
+    INFO_TEXT = "[BEGIN]#Training: {}, #Testing: {}, at: {}".format(
+        len(total_feats.query("is_train == True")),
+        len(total_feats.query("is_train == False")),
+        str(datetime.now())[:-7])
+    send_msg_to_dingtalk(info_text=INFO_TEXT, is_send_msg=SENDING_TRAINING_INFO)
 
-    # ##########################################################################
-    # # Step 1: Interpolate all the sequence to the fixed length
-    # # ------------------------
-    # with mp.Pool(processes=mp.cpu_count()) as p:
-    #     tmp = list(tqdm(p.imap(preprocessing_seq, total_data),
-    #                     total=len(total_data)))
-    # train_seq, test_seq = np.array(tmp[:len(train_data)]), np.array(tmp[len(train_data):])
+    ##########################################################################
+    # Step 1: Interpolate all the sequence to the fixed length
+    # ------------------------
+    with mp.Pool(processes=mp.cpu_count()) as p:
+        tmp = list(tqdm(p.imap(preprocessing_seq, total_data),
+                        total=len(total_data)))
+    train_seq, test_seq = np.array(tmp[:len(train_data)]), np.array(tmp[len(train_data):])
 
     # Preparing and training models
     #########################################################################
@@ -250,7 +268,7 @@ if __name__ == "__main__":
         gc.collect()
 
         # Training NN classifier
-        model = build_model_baseline(verbose=False, is_complie=True)
+        model = build_model(verbose=False, is_complie=True)
 
         model.fit(x=[d_train],
                   y=t_train,
