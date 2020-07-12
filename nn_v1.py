@@ -156,47 +156,36 @@ def build_model(verbose=False, is_compile=True, **kwargs):
                               name="input_dense")
 
     layer_series = tf.expand_dims(layer_input_series, -1)
-    layer_series_x = Conv2D(filters=128,
-                            kernel_size=(3, 3),
-                            activation='relu',
-                            padding='same')(layer_series)
-    layer_series_y = Conv2D(filters=128,
-                            kernel_size=(7, 3),
-                            activation='relu',
-                            padding='same')(layer_series)
+    layer_series = Conv2D(filters=128,
+                          kernel_size=(3, 3),
+                          activation='relu',
+                          padding='same')(layer_series)
+    layer_series = Conv2D(filters=256,
+                          kernel_size=(3, 3),
+                          activation='relu',
+                          padding='same')(layer_series)
 
+    layer_max_pool = MaxPooling2D(pool_size=(3, 3))(layer_series)
+    layer_avg_pool = AveragePooling2D(pool_size=(3, 3))(layer_series)
 
-    layer_max_pool_x = MaxPooling2D(pool_size=(3, 2))(layer_series_x)
-    layer_avg_pool_x = AveragePooling2D(pool_size=(3, 2))(layer_series_x)
-    layer_max_pool_y = MaxPooling2D(pool_size=(7, 2))(layer_series_y)
-    layer_avg_pool_y = AveragePooling2D(pool_size=(7, 2))(layer_series_y)
-
-    layer_conv_max_pool_x = Conv2D(filters=256,
-                                   kernel_size=(3, 3),
-                                   activation='relu',
-                                   padding='same')(layer_max_pool_x)
-    layer_conv_avg_pool_x = Conv2D(filters=256,
-                                   kernel_size=(3, 3),
-                                   activation='relu',
-                                   padding='same')(layer_avg_pool_x)
-    layer_conv_max_pool_y = Conv2D(filters=256,
-                                   kernel_size=(3, 3),
-                                   activation='relu',
-                                   padding='same')(layer_max_pool_y)
-    layer_conv_avg_pool_y = Conv2D(filters=256,
-                                   kernel_size=(3, 3),
-                                   activation='relu',
-                                   padding='same')(layer_avg_pool_y)
+    layer_conv_max_pool = Conv2D(filters=512,
+                                 kernel_size=(3, 3),
+                                 activation='relu',
+                                 padding='same')(layer_max_pool)
+    layer_conv_avg_pool = Conv2D(filters=512,
+                                 kernel_size=(3, 3),
+                                 activation='relu',
+                                 padding='same')(layer_avg_pool)
 
     # Concatenating the pooling layer
     layer_pooling = []
-    for layer in [layer_conv_max_pool_x, layer_conv_avg_pool_x, layer_conv_max_pool_y, layer_conv_avg_pool_y]:
+    for layer in [layer_conv_max_pool, layer_conv_avg_pool]:
         layer_pooling.append(GlobalMaxPooling2D()(layer))
         layer_pooling.append(GlobalAveragePooling2D()(layer))
     layer_pooling = concatenate(layer_pooling + [layer_input_feats])
 
     # Output structure
-    layer_output = Dropout(0.3)(layer_pooling)
+    layer_output = Dropout(0.25)(layer_pooling)
     layer_output = Dense(128)(layer_output)
     layer_output = Dense(19, activation='softmax')(layer_output)
 

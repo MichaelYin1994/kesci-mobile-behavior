@@ -52,7 +52,7 @@ def stat_feat_seq(seq=None):
 
     # Step 1: Basic stat features of each column
     stat_feat_fcns = [np.mean, np.ptp, np.std, np.min, np.max, np.sum]
-    for col_name in ["acc_x", "acc_y", "acc_z", "acc_xg", "acc_yg", "acc_zg", "mod", "modg"]:
+    for col_name in ["acc_x", "mod", "modg"]:
         for fcn in stat_feat_fcns:
             feat_names.append("stat_{}_{}".format(col_name, fcn.__name__))
             feat_vals.append(fcn(seq[col_name]))
@@ -181,7 +181,7 @@ if __name__ == "__main__":
 
     IS_SAVE_STAT_FEATS = True
     if IS_SAVE_STAT_FEATS:
-        stat_feats_tmp = stat_feats.copy()
+        stat_feats_tmp = total_feats.copy()
         stat_feats_tmp["behavior_id"] = labels + [np.nan] * len(test_data)
         file_processor = LoadSave()
         file_processor.save_data(path=".//data_tmp//stat_feats.pkl",
