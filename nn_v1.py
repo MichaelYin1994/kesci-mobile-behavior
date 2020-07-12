@@ -101,7 +101,7 @@ def interp_seq(seq=None, length_interp=61):
 def preprocessing_seq(seq=None, length_interp=61):
     """Interpolating a seq on selected feattures to the fixed length_interp"""
     seq["mod"] = np.sqrt(seq["acc_x"]**2 + seq["acc_y"]**2 + seq["acc_z"]**2)
-    seq["modg"] = np.sqrt(seq["acc_x"]**2 + seq["acc_y"]**2 + seq["acc_z"]**2)
+    seq["modg"] = np.sqrt(seq["acc_xg"]**2 + seq["acc_yg"]**2 + seq["acc_zg"]**2)
 
     selected_feats = ["acc_x", "acc_y", "acc_z", "acc_xg", "acc_yg", "acc_zg", "mod", "modg"]
     seq = interp_seq(seq[selected_feats], length_interp=length_interp)
