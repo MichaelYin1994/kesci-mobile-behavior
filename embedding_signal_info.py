@@ -212,8 +212,8 @@ if __name__ == "__main__":
     total_feats["fragment_id"] = fragment_id
     total_feats["behavior_id"] = labels + [np.nan] * len(test_data)
 
-    # Step 1: Creating corpus
-    # ------------------------
+    # # Step 1: Creating corpus
+    # # ------------------------
     # res = seq_pos_to_corpus(seq)
     # with mp.Pool(processes=mp.cpu_count()) as p:
     #     tmp = list(tqdm(p.imap(seq_pos_to_corpus, total_data),
@@ -226,8 +226,8 @@ if __name__ == "__main__":
     #                     total=len(total_data)))
     # corpus_acc, word_index_acc = corpus_to_sequence(tmp)
 
-    # Step 2: Embedding the corpus
-    # ------------------------
+    # # Step 2: Embedding the corpus
+    # # ------------------------
     # model_cbow_pos = compute_cbow_embedding(corpus=corpus_pos,
     #                                         embedding_size=40,
     #                                         window_size=25,
@@ -273,17 +273,17 @@ if __name__ == "__main__":
     embedding_feats = pd.concat([df_cbow_pos, df_cbow_acc, df_sg_pos, df_sg_acc], axis=1)
     embedding_feats["fragment_id"] = fragment_id
 
-    file_processor = LoadSave()
-    file_processor.save_data(path=".//data_tmp//embedding_df.pkl", data=embedding_feats)
+    # file_processor = LoadSave()
+    # file_processor.save_data(path=".//data_tmp//embedding_df.pkl", data=embedding_feats)
 
     # Step 3: TF-IDF features
     # ------------------------
-    MAX_FEATS = 50
+    MAX_FEATS = 250
     corpus_tfidf_pos = [" ".join(item) for item in corpus_pos]
     tfidf_pos = compute_tfidf_feats(corpus=corpus_tfidf_pos, max_feats=MAX_FEATS)
     df_tfidf_pos = pd.DataFrame(tfidf_pos, columns=["tfidf_pos_{}".format(i) for i in range(MAX_FEATS)])
 
-    MAX_FEATS = 50
+    MAX_FEATS = 250
     corpus_tfidf_acc = [" ".join(item) for item in corpus_acc]
     tfidf_acc = compute_tfidf_feats(corpus=corpus_tfidf_acc, max_feats=MAX_FEATS)
     df_tfidf_acc = pd.DataFrame(tfidf_acc, columns=["tfidf_acc_{}".format(i) for i in range(MAX_FEATS)])
@@ -292,21 +292,21 @@ if __name__ == "__main__":
     tfidf_feats["fragment_id"] = fragment_id
 
     ##########################################################################
-    # total_feats = pd.merge(total_feats, embedding_feats, on="fragment_id", how="left")
-    # # total_feats = pd.merge(total_feats, tfidf_feats, on="fragment_id", how="left")
+    total_feats = pd.merge(total_feats, embedding_feats, on="fragment_id", how="left")
+    # total_feats = pd.merge(total_feats, tfidf_feats, on="fragment_id", how="left")
 
-    # train_feats = total_feats[total_feats["behavior_id"].notnull()]
-    # test_feats = total_feats[total_feats["behavior_id"].isnull()].drop("behavior_id", axis=1).reset_index(drop=True)
+    train_feats = total_feats[total_feats["behavior_id"].notnull()]
+    test_feats = total_feats[total_feats["behavior_id"].isnull()].drop("behavior_id", axis=1).reset_index(drop=True)
 
-    # n_folds = 5
-    # scores, importances, oof_pred, y_pred = lightgbm_classifier_training(train_df=train_feats, 
-    #                                                                       test_df=test_feats,
-    #                                                                       id_name="fragment_id",
-    #                                                                       target_name="behavior_id",
-    #                                                                       stratified=True, 
-    #                                                                       shuffle=True,
-    #                                                                       n_classes=19,
-    #                                                                       n_folds=n_folds)
-    # clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
-    #                         target_name="behavior_id", id_name="fragment_id",
-    #                         sub_str_field="lgb_{}".format(n_folds), save_oof=False)
+    n_folds = 5
+    scores, importances, oof_pred, y_pred = lightgbm_classifier_training(train_df=train_feats, 
+                                                                          test_df=test_feats,
+                                                                          id_name="fragment_id",
+                                                                          target_name="behavior_id",
+                                                                          stratified=True, 
+                                                                          shuffle=True,
+                                                                          n_classes=19,
+                                                                          n_folds=n_folds)
+    clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
+                            target_name="behavior_id", id_name="fragment_id",
+                            sub_str_field="lgb_{}".format(n_folds), save_oof=False)

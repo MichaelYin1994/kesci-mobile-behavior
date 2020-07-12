@@ -10,9 +10,9 @@ import pandas as pd
 from utils import LoadSave
 
 if __name__ == "__main__":
-    train = pd.read_csv(".//data_tmp//sensor_train.csv")
-    test = pd.read_csv(".//data_tmp//sensor_test.csv")
-    sub = pd.read_csv(".//data_tmp//submission.csv")
+    train = pd.read_csv(".//data//sensor_train.csv")
+    test = pd.read_csv(".//data//sensor_test.csv")
+    sub = pd.read_csv(".//data//submission.csv")
 
     train["fragment_id"] = train["fragment_id"] + 10000000
     train_unique_id = train["fragment_id"].unique()
