@@ -31,6 +31,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras import backend as K
 
+from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import f1_score, accuracy_score
 from sklearn.model_selection import StratifiedKFold, KFold
 
@@ -144,57 +145,67 @@ def build_model_baseline(verbose=False, is_compile=True, **kwargs):
         model.summary()
     if is_compile:
         model.compile(loss="categorical_crossentropy",
-                      optimizer=Adam(0.001), metrics=['acc'])
+                      optimizer=Adam(0.003), metrics=['acc'])
     return model
 
 
 def build_model(verbose=False, is_compile=True, **kwargs):
-    input_layer = Input(shape=(61, 8))
+    dense_feat_size = kwargs.pop("dense_feat_size", 128)
+    layer_input_series = Input(shape=(61, 8), name="input_series")
+    layer_input_feats = Input(shape=(dense_feat_size, ), dtype="float32",
+                              name="input_dense")
 
-    X = tf.expand_dims(input_layer, -1)
-    X = Conv2D(filters=64,
-               kernel_size=(3, 3),
-               activation='relu',
-               padding='same')(X)
-    X = Conv2D(filters=128,
-               kernel_size=(3, 3),
-               activation='relu',
-               padding='same')(X)
-    
-    max_pool_x = MaxPooling2D(pool_size=(2, 2))(X)
-    avg_pool_x = AveragePooling2D(pool_size=(3, 2))(X)
+    layer_series = tf.expand_dims(layer_input_series, -1)
+    layer_series_x = Conv2D(filters=128,
+                            kernel_size=(3, 3),
+                            activation='relu',
+                            padding='same')(layer_series)
+    layer_series_y = Conv2D(filters=128,
+                            kernel_size=(7, 3),
+                            activation='relu',
+                            padding='same')(layer_series)
 
-    max_pool_x = Conv2D(filters=256,
-                        kernel_size=(3, 3),
-                        activation='relu',
-                        padding='same')(max_pool_x)
-    avg_pool_x = Conv2D(filters=256,
-                        kernel_size=(3, 3),
-                        activation='relu',
-                        padding='same')(avg_pool_x)
+
+    layer_max_pool_x = MaxPooling2D(pool_size=(3, 2))(layer_series_x)
+    layer_avg_pool_x = AveragePooling2D(pool_size=(3, 2))(layer_series_x)
+    layer_max_pool_y = MaxPooling2D(pool_size=(7, 2))(layer_series_y)
+    layer_avg_pool_y = AveragePooling2D(pool_size=(7, 2))(layer_series_y)
+
+    layer_conv_max_pool_x = Conv2D(filters=256,
+                                   kernel_size=(3, 3),
+                                   activation='relu',
+                                   padding='same')(layer_max_pool_x)
+    layer_conv_avg_pool_x = Conv2D(filters=256,
+                                   kernel_size=(3, 3),
+                                   activation='relu',
+                                   padding='same')(layer_avg_pool_x)
+    layer_conv_max_pool_y = Conv2D(filters=256,
+                                   kernel_size=(3, 3),
+                                   activation='relu',
+                                   padding='same')(layer_max_pool_y)
+    layer_conv_avg_pool_y = Conv2D(filters=256,
+                                   kernel_size=(3, 3),
+                                   activation='relu',
+                                   padding='same')(layer_avg_pool_y)
 
     # Concatenating the pooling layer
-    layer_pooling_0 = GlobalMaxPooling2D()(max_pool_x)
-    layer_pooling_1 = GlobalAveragePooling2D()(max_pool_x)
-    layer_pooling_2 = GlobalMaxPooling2D()(avg_pool_x)
-    layer_pooling_3 = GlobalAveragePooling2D()(avg_pool_x)
-    layer_pooling = concatenate([layer_pooling_0,
-                                 layer_pooling_1,
-                                 layer_pooling_2,
-                                 layer_pooling_3])
+    layer_pooling = []
+    for layer in [layer_conv_max_pool_x, layer_conv_avg_pool_x, layer_conv_max_pool_y, layer_conv_avg_pool_y]:
+        layer_pooling.append(GlobalMaxPooling2D()(layer))
+        layer_pooling.append(GlobalAveragePooling2D()(layer))
+    layer_pooling = concatenate(layer_pooling + [layer_input_feats])
 
     # Output structure
     layer_output = Dropout(0.3)(layer_pooling)
     layer_output = Dense(128)(layer_output)
-    layer_output = Dropout(0.15)(layer_output)
     layer_output = Dense(19, activation='softmax')(layer_output)
 
-    model = Model([input_layer], layer_output)
+    model = Model([layer_input_series, layer_input_feats], layer_output)
     if verbose:
         model.summary()
     if is_compile:
         model.compile(loss="categorical_crossentropy",
-                      optimizer=Adam(0.001), metrics=['acc'])
+                      optimizer=Adam(0.003), metrics=['acc'])
     return model
 
 
@@ -227,6 +238,19 @@ if __name__ == "__main__":
         tmp = list(tqdm(p.imap(preprocessing_seq, total_data),
                         total=len(total_data)))
     train_seq, test_seq = np.array(tmp[:len(train_data)]), np.array(tmp[len(train_data):])
+
+    # Step 2: Loading dense features
+    # ------------------------
+    file_processor = LoadSave()
+    dense_feats = file_processor.load_data(path=".//data_tmp//stat_feats.pkl")
+    train_feats = dense_feats[dense_feats["behavior_id"].notnull()].drop(
+        ["behavior_id", "fragment_id"], axis=1).values
+    test_feats = dense_feats[dense_feats["behavior_id"].isnull()].drop(
+        ["behavior_id", "fragment_id"], axis=1).values
+
+    X_sc = StandardScaler()
+    train_feats = X_sc.fit_transform(train_feats)
+    test_feats = X_sc.fit_transform(test_feats)
 
     # Preparing and training models
     #########################################################################
@@ -261,6 +285,7 @@ if __name__ == "__main__":
     targets_oht = to_categorical(labels)
     for fold, (tra_id, val_id) in enumerate(folds.split(train_seq, targets_oht)):
         d_train, d_valid = train_seq[tra_id], train_seq[val_id]
+        d_train_dense, d_valid_dense = train_feats[tra_id], train_feats[val_id]
         t_train, t_valid = targets_oht[tra_id], targets_oht[val_id]
 
         # Destroy all graph nodes in memory
@@ -268,21 +293,23 @@ if __name__ == "__main__":
         gc.collect()
 
         # Training NN classifier
-        model = build_model(verbose=False, is_complie=True)
+        model = build_model(verbose=False,
+                            is_complie=True,
+                            dense_feat_size=d_train_dense.shape[1])
 
-        model.fit(x=[d_train],
+        model.fit(x=[d_train, d_train_dense],
                   y=t_train,
-                  validation_data=([d_valid], t_valid),
+                  validation_data=([d_valid, d_valid_dense], t_valid),
                   callbacks=[early_stop],
                   batch_size=BATCH_SIZE,
                   epochs=N_EPOCHS,
                   verbose=2)
 
-        train_pred_proba = model.predict(x=[d_train],
+        train_pred_proba = model.predict(x=[d_train, d_train_dense],
                                          batch_size=BATCH_SIZE)
-        valid_pred_proba = model.predict(x=[d_valid],
+        valid_pred_proba = model.predict(x=[d_valid, d_valid_dense],
                                          batch_size=BATCH_SIZE)
-        y_pred_proba = model.predict(x=[test_seq],
+        y_pred_proba = model.predict(x=[test_seq, test_feats],
                                      batch_size=BATCH_SIZE)
         y_pred += y_pred_proba / N_FOLDS
 
