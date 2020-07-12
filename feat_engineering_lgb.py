@@ -178,3 +178,11 @@ if __name__ == "__main__":
     clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
                            target_name="behavior_id", id_name="fragment_id",
                            sub_str_field="lgb_{}".format(n_folds), save_oof=False)
+
+    IS_SAVE_STAT_FEATS = False
+    if IS_SAVE_STAT_FEATS:
+        stat_feats_tmp = stat_feats.copy()
+        stat_feats_tmp["behavior_id"] = labels + [np.nan] * len(test_data)
+        file_processor = LoadSave()
+        file_processor.save_data(path=".//data_tmp//stat_feats.pkl",
+                                 data=stat_feats_tmp)

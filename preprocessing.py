@@ -21,13 +21,13 @@ if __name__ == "__main__":
     train_data_list = []
     for i in train_unique_id:
         tmp_data = train.query("fragment_id == {}".format(i))
-        tmp_data.reset_index(drop=True)
+        tmp_data.reset_index(drop=True, inplace=True)
         train_data_list.append(tmp_data)
 
     test_data_list = []
     for i in test_unique_id:
         tmp_data = test.query("fragment_id == {}".format(i))
-        tmp_data.reset_index(drop=True)
+        tmp_data.reset_index(drop=True, inplace=True)
         test_data_list.append(tmp_data)
 
     file_processor = LoadSave()
