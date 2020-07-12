@@ -82,7 +82,7 @@ def plot_interp_seq(seq=None, seq_interp=None):
     plt.tight_layout()
 
 
-def interp_seq(seq=None, length_interp=61):
+def interp_seq(seq=None, length_interp=75):
     """Interpolating a seq to the fixed length_interp."""
     if len(seq) == length_interp:
         return seq
@@ -94,7 +94,7 @@ def interp_seq(seq=None, length_interp=61):
     interp_pos = np.random.randint(1, len(seq)-1, n_interps)
     interp_df = pd.DataFrame(interp_df, columns=list(seq.columns), index=interp_pos)
     seq = seq.append(interp_df).sort_index()
-    seq = seq.interpolate(method="linear").reset_index(drop=True)
+    seq = seq.interpolate(method="polynomial", order=3).reset_index(drop=True)
     return seq
 
 
@@ -151,7 +151,8 @@ def build_model_baseline(verbose=False, is_compile=True, **kwargs):
 
 def build_model(verbose=False, is_compile=True, **kwargs):
     dense_feat_size = kwargs.pop("dense_feat_size", 128)
-    layer_input_series = Input(shape=(61, 8), name="input_series")
+    series_length = kwargs.pop("series_length", 61)
+    layer_input_series = Input(shape=(series_length, 8), name="input_series")
     layer_input_feats = Input(shape=(dense_feat_size, ), dtype="float32",
                               name="input_dense")
 
@@ -284,6 +285,7 @@ if __name__ == "__main__":
         # Training NN classifier
         model = build_model(verbose=False,
                             is_complie=True,
+                            series_length=train_seq.shape[1],
                             dense_feat_size=d_train_dense.shape[1])
 
         model.fit(x=[d_train, d_train_dense],
