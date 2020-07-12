@@ -278,12 +278,12 @@ if __name__ == "__main__":
 
     # Step 3: TF-IDF features
     # ------------------------
-    MAX_FEATS = 250
+    MAX_FEATS = 100
     corpus_tfidf_pos = [" ".join(item) for item in corpus_pos]
     tfidf_pos = compute_tfidf_feats(corpus=corpus_tfidf_pos, max_feats=MAX_FEATS)
     df_tfidf_pos = pd.DataFrame(tfidf_pos, columns=["tfidf_pos_{}".format(i) for i in range(MAX_FEATS)])
 
-    MAX_FEATS = 250
+    MAX_FEATS = 100
     corpus_tfidf_acc = [" ".join(item) for item in corpus_acc]
     tfidf_acc = compute_tfidf_feats(corpus=corpus_tfidf_acc, max_feats=MAX_FEATS)
     df_tfidf_acc = pd.DataFrame(tfidf_acc, columns=["tfidf_acc_{}".format(i) for i in range(MAX_FEATS)])
@@ -293,7 +293,7 @@ if __name__ == "__main__":
 
     ##########################################################################
     total_feats = pd.merge(total_feats, embedding_feats, on="fragment_id", how="left")
-    # total_feats = pd.merge(total_feats, tfidf_feats, on="fragment_id", how="left")
+    total_feats = pd.merge(total_feats, tfidf_feats, on="fragment_id", how="left")
 
     train_feats = total_feats[total_feats["behavior_id"].notnull()]
     test_feats = total_feats[total_feats["behavior_id"].isnull()].drop("behavior_id", axis=1).reset_index(drop=True)

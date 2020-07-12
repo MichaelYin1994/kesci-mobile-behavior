@@ -59,49 +59,49 @@ def stat_feat_seq(seq=None):
 
     # Step 2: Quantile features
     feat_name = "acc_x"
-    quantile = np.linspace(0.02, 0.99, 20)
+    quantile = np.linspace(0.02, 0.99, 17)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                            feat_name=feat_name))
 
     feat_name = "acc_y"
-    quantile = np.linspace(0.02, 0.99, 20)
+    quantile = np.linspace(0.02, 0.99, 17)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                            feat_name=feat_name))
 
     feat_name = "acc_z"
-    quantile = np.linspace(0.02, 0.99, 20)
+    quantile = np.linspace(0.02, 0.99, 17)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                            feat_name=feat_name))
 
     feat_name = "acc_xg"
-    quantile = np.linspace(0.02, 0.99, 20)
+    quantile = np.linspace(0.02, 0.99, 17)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                            feat_name=feat_name))
 
     feat_name = "acc_yg"
-    quantile = np.linspace(0.02, 0.99, 20)
+    quantile = np.linspace(0.02, 0.99, 17)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                            feat_name=feat_name))
 
     feat_name = "acc_zg"
-    quantile = np.linspace(0.02, 0.99, 20)
+    quantile = np.linspace(0.02, 0.99, 17)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                            feat_name=feat_name))
 
     feat_name = "mod"
-    quantile = np.linspace(0.02, 0.99, 20)
+    quantile = np.linspace(0.02, 0.99, 17)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                            feat_name=feat_name))
 
     feat_name = "modg"
-    quantile = np.linspace(0.02, 0.99, 20)
+    quantile = np.linspace(0.02, 0.99, 17)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                            feat_name=feat_name))
@@ -166,7 +166,7 @@ if __name__ == "__main__":
     train_feats = total_feats[total_feats["behavior_id"].notnull()]
     test_feats = total_feats[total_feats["behavior_id"].isnull()].drop("behavior_id", axis=1).reset_index(drop=True)
 
-    n_folds = 10
+    n_folds = 5
     scores, importances, oof_pred, y_pred = lightgbm_classifier_training(train_df=train_feats, 
                                                                           test_df=test_feats,
                                                                           id_name="fragment_id",
