@@ -200,81 +200,81 @@ def corpus_to_sequence(corpus=None):
 
 
 if __name__ == "__main__":
-    # train_data = load_data("train.pkl")
-    # test_data = load_data("test.pkl")
+    train_data = load_data("train.pkl")
+    test_data = load_data("test.pkl")
 
-    # total_data = train_data + test_data
-    # fragment_id = [seq["fragment_id"].unique()[0] for seq in total_data]
-    # labels = [seq["behavior_id"].unique()[0] for seq in train_data]
-    # seq = total_data[14]
+    total_data = train_data + test_data
+    fragment_id = [seq["fragment_id"].unique()[0] for seq in total_data]
+    labels = [seq["behavior_id"].unique()[0] for seq in train_data]
+    seq = total_data[14]
 
     total_feats = pd.DataFrame(None)
     total_feats["fragment_id"] = fragment_id
     total_feats["behavior_id"] = labels + [np.nan] * len(test_data)
 
-    # # Step 1: Creating corpus
-    # # ------------------------
-    # res = seq_pos_to_corpus(seq)
-    # with mp.Pool(processes=mp.cpu_count()) as p:
-    #     tmp = list(tqdm(p.imap(seq_pos_to_corpus, total_data),
-    #                     total=len(total_data)))
-    # corpus_pos, word_index_pos = corpus_to_sequence(tmp)
+    # Step 1: Creating corpus
+    # ------------------------
+    res = seq_pos_to_corpus(seq)
+    with mp.Pool(processes=mp.cpu_count()) as p:
+        tmp = list(tqdm(p.imap(seq_pos_to_corpus, total_data),
+                        total=len(total_data)))
+    corpus_pos, word_index_pos = corpus_to_sequence(tmp)
 
-    # res = seq_acc_to_corpus(seq)
-    # with mp.Pool(processes=mp.cpu_count()) as p:
-    #     tmp = list(tqdm(p.imap(seq_acc_to_corpus, total_data),
-    #                     total=len(total_data)))
-    # corpus_acc, word_index_acc = corpus_to_sequence(tmp)
+    res = seq_acc_to_corpus(seq)
+    with mp.Pool(processes=mp.cpu_count()) as p:
+        tmp = list(tqdm(p.imap(seq_acc_to_corpus, total_data),
+                        total=len(total_data)))
+    corpus_acc, word_index_acc = corpus_to_sequence(tmp)
 
-    # # Step 2: Embedding the corpus
-    # # ------------------------
-    # model_cbow_pos = compute_cbow_embedding(corpus=corpus_pos,
-    #                                         embedding_size=40,
-    #                                         window_size=25,
-    #                                         min_count=4,
-    #                                         iters=30,
-    #                                         is_save_model=True,
-    #                                         model_name="cbow_pos")
-    # model_cbow_acc = compute_cbow_embedding(corpus=corpus_acc,
-    #                                         embedding_size=30,
-    #                                         window_size=25,
-    #                                         min_count=4,
-    #                                         iters=30,
-    #                                         is_save_model=True,
-    #                                         model_name="cbow_acc")
+    # Step 2: Embedding the corpus
+    # ------------------------
+    model_cbow_pos = compute_cbow_embedding(corpus=corpus_pos,
+                                            embedding_size=40,
+                                            window_size=25,
+                                            min_count=4,
+                                            iters=30,
+                                            is_save_model=True,
+                                            model_name="cbow_pos")
+    model_cbow_acc = compute_cbow_embedding(corpus=corpus_acc,
+                                            embedding_size=30,
+                                            window_size=25,
+                                            min_count=4,
+                                            iters=30,
+                                            is_save_model=True,
+                                            model_name="cbow_acc")
 
-    # model_sg_pos = compute_skip_gram_embedding(corpus=corpus_pos,
-    #                                             embedding_size=40,
-    #                                             window_size=25,
-    #                                             min_count=4,
-    #                                             iters=35,
-    #                                             is_save_model=True,
-    #                                             model_name="sg_pos")
-    # model_sg_acc = compute_skip_gram_embedding(corpus=corpus_acc,
-    #                                             embedding_size=30,
-    #                                             window_size=25,
-    #                                             min_count=4,
-    #                                             iters=35,
-    #                                             is_save_model=True,
-    #                                             model_name="sg_acc")
+    model_sg_pos = compute_skip_gram_embedding(corpus=corpus_pos,
+                                                embedding_size=40,
+                                                window_size=25,
+                                                min_count=4,
+                                                iters=35,
+                                                is_save_model=True,
+                                                model_name="sg_pos")
+    model_sg_acc = compute_skip_gram_embedding(corpus=corpus_acc,
+                                                embedding_size=30,
+                                                window_size=25,
+                                                min_count=4,
+                                                iters=35,
+                                                is_save_model=True,
+                                                model_name="sg_acc")
 
-    # df_cbow_pos = compute_mean_embedding(corpus=corpus_pos,
-    #                                       model=model_cbow_pos,
-    #                                       prefix="cbow_pos")
-    # df_cbow_acc = compute_mean_embedding(corpus=corpus_acc,
-    #                                       model=model_cbow_acc,
-    #                                       prefix="cbow_acc")
-    # df_sg_pos = compute_mean_embedding(corpus=corpus_pos,
-    #                                     model=model_sg_pos,
-    #                                     prefix="sg_pos")
-    # df_sg_acc = compute_mean_embedding(corpus=corpus_acc,
-    #                                     model=model_sg_acc,
-    #                                     prefix="sg_acc")
+    df_cbow_pos = compute_mean_embedding(corpus=corpus_pos,
+                                          model=model_cbow_pos,
+                                          prefix="cbow_pos")
+    df_cbow_acc = compute_mean_embedding(corpus=corpus_acc,
+                                          model=model_cbow_acc,
+                                          prefix="cbow_acc")
+    df_sg_pos = compute_mean_embedding(corpus=corpus_pos,
+                                        model=model_sg_pos,
+                                        prefix="sg_pos")
+    df_sg_acc = compute_mean_embedding(corpus=corpus_acc,
+                                        model=model_sg_acc,
+                                        prefix="sg_acc")
     embedding_feats = pd.concat([df_cbow_pos, df_cbow_acc, df_sg_pos, df_sg_acc], axis=1)
     embedding_feats["fragment_id"] = fragment_id
 
-    # file_processor = LoadSave()
-    # file_processor.save_data(path=".//data_tmp//embedding_df.pkl", data=embedding_feats)
+    file_processor = LoadSave()
+    file_processor.save_data(path=".//data_tmp//embedding_df.pkl", data=embedding_feats)
 
     # Step 3: TF-IDF features
     # ------------------------

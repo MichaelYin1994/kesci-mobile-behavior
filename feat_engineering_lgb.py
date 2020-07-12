@@ -48,11 +48,11 @@ def stat_feat_seq(seq=None):
     # Preparing: mod quantile feats
     # https://github.com/ycd2016/xw2020_cnn_baseline/blob/master/baseline.py
     seq["mod"] = np.sqrt(seq["acc_x"]**2 + seq["acc_y"]**2 + seq["acc_z"]**2)
-    seq["modg"] = np.sqrt(seq["acc_x"]**2 + seq["acc_y"]**2 + seq["acc_z"]**2)
+    seq["modg"] = np.sqrt(seq["acc_xg"]**2 + seq["acc_yg"]**2 + seq["acc_zg"]**2)
 
     # Step 1: Basic stat features of each column
     stat_feat_fcns = [np.mean, np.ptp, np.std, np.min, np.max, np.sum]
-    for col_name in ["acc_x", "mod", "modg"]:
+    for col_name in ["acc_x", "acc_y", "acc_z", "acc_xg", "acc_yg", "acc_zg", "mod", "modg"]:
         for fcn in stat_feat_fcns:
             feat_names.append("stat_{}_{}".format(col_name, fcn.__name__))
             feat_vals.append(fcn(seq[col_name]))
