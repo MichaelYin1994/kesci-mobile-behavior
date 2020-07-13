@@ -203,56 +203,6 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     return model
 
 
-# def build_model_new(verbose=False, is_compile=True, **kwargs):
-#     dense_feat_size = kwargs.pop("dense_feat_size", 128)
-#     series_length = kwargs.pop("series_length", 61)
-#     layer_input_series = Input(shape=(series_length, 8), name="input_series")
-#     layer_input_feats = Input(shape=(dense_feat_size, ), dtype="float32",
-#                               name="input_dense")
-#
-#     layer_series = tf.expand_dims(layer_input_series, -1)
-#     layer_series = Conv2D(filters=64,
-#                           kernel_size=(5, 3),
-#                           activation='elu',
-#                           padding='same')(layer_series)
-#     layer_series = Conv2D(filters=128,
-#                           kernel_size=(5, 3),
-#                           activation='relu',
-#                           padding='same')(layer_series)
-#
-#     layer_max_pool = MaxPooling2D(pool_size=(3, 3))(layer_series)
-#     layer_avg_pool = AveragePooling2D(pool_size=(3, 3))(layer_series)
-#
-#     layer_conv_max_pool = Conv2D(filters=256,
-#                                  kernel_size=(3, 3),
-#                                  activation='relu',
-#                                  padding='same')(layer_max_pool)
-#     layer_conv_avg_pool = Conv2D(filters=256,
-#                                  kernel_size=(3, 3),
-#                                  activation='relu',
-#                                  padding='same')(layer_avg_pool)
-#
-#     # Concatenating the pooling layer
-#     layer_pooling = []
-#     for layer in [layer_conv_max_pool, layer_conv_avg_pool]:
-#         layer_pooling.append(GlobalMaxPooling2D()(layer))
-#         # layer_pooling.append(GlobalAveragePooling2D()(layer))
-#     layer_pooling = concatenate(layer_pooling + [layer_input_feats])
-#
-#     # Output structure
-#     layer_output = Dropout(0.3)(layer_pooling)
-#     layer_output = Dense(128)(layer_output)
-#     layer_output = Dense(19, activation='softmax')(layer_output)
-#
-#     model = Model([layer_input_series, layer_input_feats], layer_output)
-#     if verbose:
-#         model.summary()
-#     if is_compile:
-#         model.compile(loss="categorical_crossentropy",
-#                       optimizer=Adam(0.002), metrics=['acc'])
-#     return model
-
-
 if __name__ == "__main__":
     train_data = load_data("train.pkl")
     test_data = load_data("test.pkl")
@@ -295,6 +245,7 @@ if __name__ == "__main__":
     X_sc = StandardScaler()
     train_feats = X_sc.fit_transform(train_feats)
     test_feats = X_sc.fit_transform(test_feats)
+
 
     # Preparing and training models
     #########################################################################

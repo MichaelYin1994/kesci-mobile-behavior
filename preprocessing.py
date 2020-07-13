@@ -18,18 +18,18 @@ if __name__ == "__main__":
     train_unique_id = train["fragment_id"].unique()
     test_unique_id = test["fragment_id"].unique()
 
-    train_data_list = []
-    for i in train_unique_id:
-        tmp_data = train.query("fragment_id == {}".format(i))
-        tmp_data.reset_index(drop=True, inplace=True)
-        train_data_list.append(tmp_data)
+    # train_data_list = []
+    # for i in train_unique_id:
+    #     tmp_data = train.query("fragment_id == {}".format(i))
+    #     tmp_data.reset_index(drop=True, inplace=True)
+    #     train_data_list.append(tmp_data)
 
-    test_data_list = []
-    for i in test_unique_id:
-        tmp_data = test.query("fragment_id == {}".format(i))
-        tmp_data.reset_index(drop=True, inplace=True)
-        test_data_list.append(tmp_data)
+    # test_data_list = []
+    # for i in test_unique_id:
+    #     tmp_data = test.query("fragment_id == {}".format(i))
+    #     tmp_data.reset_index(drop=True, inplace=True)
+    #     test_data_list.append(tmp_data)
 
-    file_processor = LoadSave()
-    file_processor.save_data(path=".//data_tmp//train.pkl", data=train_data_list)
-    file_processor.save_data(path=".//data_tmp//test.pkl", data=test_data_list)
+    # file_processor = LoadSave()
+    # file_processor.save_data(path=".//data_tmp//train.pkl", data=train_data_list)
+    # file_processor.save_data(path=".//data_tmp//test.pkl", data=test_data_list)
