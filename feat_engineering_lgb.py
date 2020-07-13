@@ -45,13 +45,18 @@ def stat_feat_seq(seq=None):
     """Basic feature engineering for each dim"""
     feat_vals, feat_names = [], []
 
+    for name in seq.columns:
+        if name in ["fragment_id", "behavior_id", "time_point"]:
+            continue
+        seq[name] = (seq[name].values - seq[name].mean()) / seq[name].std()
+
     # Preparing: mod quantile feats
     # https://github.com/ycd2016/xw2020_cnn_baseline/blob/master/baseline.py
     seq["mod"] = np.sqrt(seq["acc_x"]**2 + seq["acc_y"]**2 + seq["acc_z"]**2)
     seq["modg"] = np.sqrt(seq["acc_xg"]**2 + seq["acc_yg"]**2 + seq["acc_zg"]**2)
 
     # Step 1: Basic stat features of each column
-    stat_feat_fcns = [np.mean, np.ptp, np.std]
+    stat_feat_fcns = [np.ptp, np.std]
     for col_name in ["mod", "modg"]:
         for fcn in stat_feat_fcns:
             feat_names.append("stat_{}_{}".format(col_name, fcn.__name__))
@@ -94,17 +99,17 @@ def stat_feat_seq(seq=None):
     # feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
     #                                        feat_name=feat_name))
 
-    # feat_name = "mod"
-    # quantile = np.linspace(0.02, 0.99, 17)
-    # feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
-    # feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
-    #                                        feat_name=feat_name))
+    feat_name = "mod"
+    quantile = np.linspace(0.1, 0.95, 6)
+    feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
+    feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
+                                            feat_name=feat_name))
 
-    # feat_name = "modg"
-    # quantile = np.linspace(0.02, 0.99, 17)
-    # feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
-    # feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
-    #                                        feat_name=feat_name))
+    feat_name = "modg"
+    quantile = np.linspace(0.1, 0.95, 6)
+    feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
+    feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
+                                            feat_name=feat_name))
 
     # Step 3: Special count features
     feat_names.append("between_acc_x")
@@ -166,20 +171,20 @@ if __name__ == "__main__":
     train_feats = total_feats[total_feats["behavior_id"].notnull()]
     test_feats = total_feats[total_feats["behavior_id"].isnull()].drop("behavior_id", axis=1).reset_index(drop=True)
 
-    # n_folds = 5
-    # scores, importances, oof_pred, y_pred = lightgbm_classifier_training(train_df=train_feats, 
-    #                                                                       test_df=test_feats,
-    #                                                                       id_name="fragment_id",
-    #                                                                       target_name="behavior_id",
-    #                                                                       stratified=True, 
-    #                                                                       shuffle=True,
-    #                                                                       n_classes=19,
-    #                                                                       n_folds=n_folds)
-    # clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
-    #                        target_name="behavior_id", id_name="fragment_id",
-    #                        sub_str_field="lgb_{}".format(n_folds), save_oof=False)
+    n_folds = 5
+    scores, importances, oof_pred, y_pred = lightgbm_classifier_training(train_df=train_feats, 
+                                                                          test_df=test_feats,
+                                                                          id_name="fragment_id",
+                                                                          target_name="behavior_id",
+                                                                          stratified=True, 
+                                                                          shuffle=True,
+                                                                          n_classes=19,
+                                                                          n_folds=n_folds)
+    clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
+                            target_name="behavior_id", id_name="fragment_id",
+                            sub_str_field="lgb_{}".format(n_folds), save_oof=False)
 
-    IS_SAVE_STAT_FEATS = True
+    IS_SAVE_STAT_FEATS = False
     if IS_SAVE_STAT_FEATS:
         stat_feats_tmp = stat_feats.copy()
         stat_feats_tmp["behavior_id"] = labels + [np.nan] * len(test_data)

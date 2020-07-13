@@ -107,9 +107,9 @@ def preprocessing_seq(seq=None, length_interp=61):
     seq = interp_seq(seq[selected_feats], length_interp=length_interp)
 
     # Normalization
-    X_sc = StandardScaler()
-    seq = X_sc.fit_transform(seq.values)
-    return seq
+    # X_sc = StandardScaler()
+    # seq = X_sc.fit_transform(seq.values)
+    return seq.values
 
 
 def build_model_baseline(verbose=False, is_compile=True, **kwargs):
@@ -203,78 +203,54 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     return model
 
 
-def ReLUBN(layer_input=None):
-    layer_relu = ReLU()(layer_input)
-    layer_bn = BatchNormalization()(layer_relu)
-    return layer_bn
-
-
-def residual_block(layer_input=None, 
-                   stride_size=1,
-                   filters=32,
-                   downsample=False,
-                   kernel_size=(3, 3)):
-    layer_conv = Conv2D(filters=filters,
-                        kernel_size=kernel_size, 
-                        strides=stride_size,
-                        padding="same")(layer_input)
-    layer_conv = ReLUBN(layer_conv)
-
-    layer_conv = Conv2D(filters=filters,
-                        kernel_size=kernel_size,
-                        strides=1,
-                        padding="same")(layer_conv)
-
-    if downsample:
-        layer_conv = Conv2D(filters,
-                            kernel_size=1,
-                            strides=2,
-                            padding="same")(layer_conv)
-
-    layer_output = Add()([layer_input, layer_conv])
-    layer_output = ReLU()(layer_output)
-    return layer_output
-
-
-def build_model_resnet(verbose=False, is_compile=True, **kwargs):
-    dense_feat_size = kwargs.pop("dense_feat_size", 128)
-    series_length = kwargs.pop("series_length", 61)
-    layer_input_series = Input(shape=(series_length, 8), name="input_series")
-    layer_input_feats = Input(shape=(dense_feat_size, ), dtype="float32",
-                              name="input_dense")
-
-    # Building the residual network
-    # ------------
-    layer_series = tf.expand_dims(layer_input_series, -1)
-
-    # x = BatchNormalization()(layer_series)
-    x = Conv2D(filters=256,
-               kernel_size=(3, 3),
-               activation='relu',
-               padding='same')(layer_series)
-    # x = ReLUBN(x)
-    # x = residual_block(x, filters=128)
-
-    avg_pool = AveragePooling2D()(x)
-    avg_pool = Flatten()(avg_pool)
-
-    layer_feats = BatchNormalization()(layer_input_feats)
-    layer_total = concatenate([avg_pool, layer_feats])
-
-    # Output structure
-    layer_output = Dropout(0.25)(layer_total)
-    layer_output = Dense(128)(layer_output)
-    layer_output = Dropout(0.25)(layer_output)
-    layer_output = Dense(19, activation='softmax')(layer_output)
-
-    model = Model([layer_input_series, layer_input_feats], layer_output)
-    if verbose:
-        model.summary()
-    if is_compile:
-        model.compile(loss="categorical_crossentropy",
-                      optimizer=Adam(0.002), metrics=['acc'])
-    return model
-
+# def build_model_new(verbose=False, is_compile=True, **kwargs):
+#     dense_feat_size = kwargs.pop("dense_feat_size", 128)
+#     series_length = kwargs.pop("series_length", 61)
+#     layer_input_series = Input(shape=(series_length, 8), name="input_series")
+#     layer_input_feats = Input(shape=(dense_feat_size, ), dtype="float32",
+#                               name="input_dense")
+#
+#     layer_series = tf.expand_dims(layer_input_series, -1)
+#     layer_series = Conv2D(filters=64,
+#                           kernel_size=(5, 3),
+#                           activation='elu',
+#                           padding='same')(layer_series)
+#     layer_series = Conv2D(filters=128,
+#                           kernel_size=(5, 3),
+#                           activation='relu',
+#                           padding='same')(layer_series)
+#
+#     layer_max_pool = MaxPooling2D(pool_size=(3, 3))(layer_series)
+#     layer_avg_pool = AveragePooling2D(pool_size=(3, 3))(layer_series)
+#
+#     layer_conv_max_pool = Conv2D(filters=256,
+#                                  kernel_size=(3, 3),
+#                                  activation='relu',
+#                                  padding='same')(layer_max_pool)
+#     layer_conv_avg_pool = Conv2D(filters=256,
+#                                  kernel_size=(3, 3),
+#                                  activation='relu',
+#                                  padding='same')(layer_avg_pool)
+#
+#     # Concatenating the pooling layer
+#     layer_pooling = []
+#     for layer in [layer_conv_max_pool, layer_conv_avg_pool]:
+#         layer_pooling.append(GlobalMaxPooling2D()(layer))
+#         # layer_pooling.append(GlobalAveragePooling2D()(layer))
+#     layer_pooling = concatenate(layer_pooling + [layer_input_feats])
+#
+#     # Output structure
+#     layer_output = Dropout(0.3)(layer_pooling)
+#     layer_output = Dense(128)(layer_output)
+#     layer_output = Dense(19, activation='softmax')(layer_output)
+#
+#     model = Model([layer_input_series, layer_input_feats], layer_output)
+#     if verbose:
+#         model.summary()
+#     if is_compile:
+#         model.compile(loss="categorical_crossentropy",
+#                       optimizer=Adam(0.002), metrics=['acc'])
+#     return model
 
 
 if __name__ == "__main__":
@@ -322,7 +298,7 @@ if __name__ == "__main__":
 
     # Preparing and training models
     #########################################################################
-    N_FOLDS = 10
+    N_FOLDS = 5
     BATCH_SIZE = 4096
     N_EPOCHS = 200
     IS_STRATIFIED = False
@@ -341,10 +317,10 @@ if __name__ == "__main__":
     oof_pred = np.zeros((len(train_data), 19))
     y_pred = np.zeros((len(test_data), 19))
     early_stop = EarlyStopping(monitor='val_acc',
-                                mode='max',
-                                verbose=1,
-                                patience=20,
-                                restore_best_weights=True)
+                               mode='max',
+                               verbose=1,
+                               patience=40,
+                               restore_best_weights=True)
 
     # Training the NN classifier
     send_msg_to_dingtalk("\n[INFO]Start training NeuralNets CLASSIFIER at: {}".format(
@@ -361,7 +337,7 @@ if __name__ == "__main__":
         gc.collect()
 
         # Training NN classifier
-        model = build_model_resnet(verbose=False,
+        model = build_model(verbose=False,
                             is_complie=True,
                             series_length=train_seq.shape[1],
                             dense_feat_size=d_train_dense.shape[1])
@@ -375,11 +351,11 @@ if __name__ == "__main__":
                   verbose=2)
 
         train_pred_proba = model.predict(x=[d_train, d_train_dense],
-                                          batch_size=BATCH_SIZE)
+                                         batch_size=BATCH_SIZE)
         valid_pred_proba = model.predict(x=[d_valid, d_valid_dense],
-                                          batch_size=BATCH_SIZE)
+                                         batch_size=BATCH_SIZE)
         y_pred_proba = model.predict(x=[test_seq, test_feats],
-                                      batch_size=BATCH_SIZE)
+                                     batch_size=BATCH_SIZE)
         y_pred += y_pred_proba / N_FOLDS
 
         oof_pred[val_id] = valid_pred_proba
@@ -392,11 +368,11 @@ if __name__ == "__main__":
         train_f1 = f1_score(
             t_train_label, train_pred_label, average="macro")
         train_acc = accuracy_score(t_train_label,
-                                    train_pred_label)
+                                   train_pred_label)
         valid_f1 = f1_score(
             t_valid_label, valid_pred_label, average="macro")
         valid_acc = accuracy_score(t_valid_label,
-                                    valid_pred_label)
+                                   valid_pred_label)
 
         train_custom = np.apply_along_axis(
             acc_combo, 1, np.hstack((t_train_label, train_pred_label))).mean()
@@ -416,10 +392,10 @@ if __name__ == "__main__":
     total_f1 = f1_score(np.array(labels).reshape(-1, 1),
                         oof_pred_label.reshape((-1, 1)), average="macro")
     total_acc = accuracy_score(np.array(labels).reshape(-1, 1),
-                                oof_pred_label.reshape((-1, 1)))
+                               oof_pred_label.reshape((-1, 1)))
     total_custom = np.apply_along_axis(
             acc_combo, 1, np.hstack((np.array(labels).reshape((-1, 1)),
-                                      oof_pred_label.reshape((-1, 1))))).mean()
+                                     oof_pred_label.reshape((-1, 1))))).mean()
 
     INFO_TEXT = "[INFO] total valid f1: {:.5f}, acc: {:.5f}, custom: {:.5f}".format(
         total_f1, total_acc, total_custom)
@@ -431,8 +407,8 @@ if __name__ == "__main__":
 
     # Saving prediction results
     scores = pd.DataFrame(scores, columns=["folds", "train_f1", "train_acc",
-                                            "valid_f1", "valid_acc",
-                                            "train_custom", "valid_custom"])
+                                           "valid_f1", "valid_acc",
+                                           "train_custom", "valid_custom"])
     y_pred = pd.DataFrame(
         y_pred, columns=["y_pred_{}".format(i) for i in range(19)])
     y_pred["fragment_id"] = total_feats.query("is_train == False")["fragment_id"].values
@@ -441,5 +417,5 @@ if __name__ == "__main__":
     oof_pred["fragment_id"], oof_pred["behavior_id"] = total_feats.query("is_train == True")["fragment_id"].values, total_feats.query("is_train == True")["behavior_id"].values
 
     clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
-                            target_name="behavior_id", id_name="fragment_id",
-                            sub_str_field="nn_{}".format(N_FOLDS), save_oof=False)
+                           target_name="behavior_id", id_name="fragment_id",
+                           sub_str_field="nn_{}".format(N_FOLDS), save_oof=False)

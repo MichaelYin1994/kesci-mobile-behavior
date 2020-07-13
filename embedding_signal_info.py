@@ -230,14 +230,14 @@ if __name__ == "__main__":
     # ------------------------
     model_cbow_pos = compute_cbow_embedding(corpus=corpus_pos,
                                             embedding_size=40,
-                                            window_size=25,
+                                            window_size=15,
                                             min_count=4,
                                             iters=30,
                                             is_save_model=True,
                                             model_name="cbow_pos")
     model_cbow_acc = compute_cbow_embedding(corpus=corpus_acc,
                                             embedding_size=30,
-                                            window_size=25,
+                                            window_size=15,
                                             min_count=4,
                                             iters=30,
                                             is_save_model=True,
@@ -245,14 +245,14 @@ if __name__ == "__main__":
 
     model_sg_pos = compute_skip_gram_embedding(corpus=corpus_pos,
                                                 embedding_size=40,
-                                                window_size=25,
+                                                window_size=15,
                                                 min_count=4,
                                                 iters=35,
                                                 is_save_model=True,
                                                 model_name="sg_pos")
     model_sg_acc = compute_skip_gram_embedding(corpus=corpus_acc,
                                                 embedding_size=30,
-                                                window_size=25,
+                                                window_size=15,
                                                 min_count=4,
                                                 iters=35,
                                                 is_save_model=True,
@@ -278,22 +278,22 @@ if __name__ == "__main__":
 
     # Step 3: TF-IDF features
     # ------------------------
-    MAX_FEATS = 100
-    corpus_tfidf_pos = [" ".join(item) for item in corpus_pos]
-    tfidf_pos = compute_tfidf_feats(corpus=corpus_tfidf_pos, max_feats=MAX_FEATS)
-    df_tfidf_pos = pd.DataFrame(tfidf_pos, columns=["tfidf_pos_{}".format(i) for i in range(MAX_FEATS)])
+    # MAX_FEATS = 200
+    # corpus_tfidf_pos = [" ".join(item) for item in corpus_pos]
+    # tfidf_pos = compute_tfidf_feats(corpus=corpus_tfidf_pos, max_feats=MAX_FEATS)
+    # df_tfidf_pos = pd.DataFrame(tfidf_pos, columns=["tfidf_pos_{}".format(i) for i in range(MAX_FEATS)])
 
-    MAX_FEATS = 100
-    corpus_tfidf_acc = [" ".join(item) for item in corpus_acc]
-    tfidf_acc = compute_tfidf_feats(corpus=corpus_tfidf_acc, max_feats=MAX_FEATS)
-    df_tfidf_acc = pd.DataFrame(tfidf_acc, columns=["tfidf_acc_{}".format(i) for i in range(MAX_FEATS)])
+    # MAX_FEATS = 200
+    # corpus_tfidf_acc = [" ".join(item) for item in corpus_acc]
+    # tfidf_acc = compute_tfidf_feats(corpus=corpus_tfidf_acc, max_feats=MAX_FEATS)
+    # df_tfidf_acc = pd.DataFrame(tfidf_acc, columns=["tfidf_acc_{}".format(i) for i in range(MAX_FEATS)])
 
-    tfidf_feats = pd.concat([df_tfidf_pos, df_tfidf_acc], axis=1)
-    tfidf_feats["fragment_id"] = fragment_id
+    # tfidf_feats = pd.concat([df_tfidf_pos, df_tfidf_acc], axis=1)
+    # tfidf_feats["fragment_id"] = fragment_id
 
     ##########################################################################
     total_feats = pd.merge(total_feats, embedding_feats, on="fragment_id", how="left")
-    total_feats = pd.merge(total_feats, tfidf_feats, on="fragment_id", how="left")
+    # total_feats = pd.merge(total_feats, tfidf_feats, on="fragment_id", how="left")
 
     train_feats = total_feats[total_feats["behavior_id"].notnull()]
     test_feats = total_feats[total_feats["behavior_id"].isnull()].drop("behavior_id", axis=1).reset_index(drop=True)
