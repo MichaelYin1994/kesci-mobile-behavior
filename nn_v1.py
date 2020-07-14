@@ -179,7 +179,7 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     # -----------------
     layer_conv_2d = tf.expand_dims(layer_input_series, -1)
     layer_conv_2d = Conv2D(filters=64,
-                           kernel_size=(3, 3),
+                           kernel_size=(5, 3),
                            activation='relu',
                            padding='same')(layer_conv_2d)
     layer_conv_2d = Conv2D(filters=128,
@@ -211,22 +211,9 @@ def build_model(verbose=False, is_compile=True, **kwargs):
         layer_conv_2d_pooling.append(GlobalMaxPooling2D()(layer))
         layer_conv_2d_pooling.append(GlobalAveragePooling2D()(layer))
 
-    # Conv_1d time series
-    # -----------------
-    layer_conv_1d = Conv1D(filters=64,
-                           kernel_size=7,
-                           activation='elu',
-                           padding="same")(layer_input_series)
-
-    layer_conv_1d_avg_pool = GlobalAveragePooling1D()(layer_conv_1d)
-    layer_conv_1d_avg_pool = Dropout(0.1)(layer_conv_1d_avg_pool)
-
-    layer_conv_1d_max_pool = GlobalMaxPooling1D()(layer_conv_1d)
-    layer_conv_1d_max_pool = Dropout(0.1)(layer_conv_1d_max_pool)
-
     # Concat all
     # -----------------
-    layer_pooling = concatenate(layer_conv_2d_pooling + [layer_input_feats] + [layer_conv_1d_avg_pool, layer_conv_1d_max_pool])
+    layer_pooling = concatenate(layer_conv_2d_pooling + [layer_input_feats])
 
     # Output structure
     # -----------------
@@ -289,7 +276,7 @@ if __name__ == "__main__":
     # Preparing and training models
     #########################################################################
     N_FOLDS = 5
-    BATCH_SIZE = 128
+    BATCH_SIZE = 512
     N_EPOCHS = 200
     IS_STRATIFIED = False
     SEED = 1024
