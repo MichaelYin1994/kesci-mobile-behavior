@@ -107,7 +107,7 @@ def preprocessing_seq(seq=None, length_interp=61):
     seq = interp_seq(seq[selected_feats], length_interp=length_interp)
 
     # Normalization
-    # X_sc = StandardScaler()
+    # X_sc = StandardScaler()0
     # seq = X_sc.fit_transform(seq.values)
     return seq.values
 
@@ -119,41 +119,6 @@ def build_model_baseline(verbose=False, is_compile=True, **kwargs):
     --------
     [1] https://github.com/ycd2016/xw2020_cnn_baseline/blob/master/baseline.py#L28
     """
-    input_layer = Input(shape=(61, 8))
-
-    X = tf.expand_dims(input_layer, -1)
-    X = Conv2D(filters=64,
-               kernel_size=(3, 3),
-               activation='relu',
-               padding='same')(X)
-    X = Conv2D(filters=128,
-               kernel_size=(3, 3),
-               activation='relu',
-               padding='same')(X)
-    X = MaxPooling2D()(X)
-
-    X = Conv2D(filters=256,
-               kernel_size=(3, 3),
-               activation='relu',
-               padding='same')(X)
-    X = Conv2D(filters=512,
-               kernel_size=(5, 5),
-               activation='relu',
-               padding='same')(X)
-    X = GlobalMaxPooling2D()(X)
-    X = Dropout(0.2)(X)
-    X = Dense(19, activation='softmax')(X)
-
-    model = Model([input_layer], X)
-    if verbose:
-        model.summary()
-    if is_compile:
-        model.compile(loss="categorical_crossentropy",
-                      optimizer=Adam(0.003), metrics=['acc'])
-    return model
-
-
-def build_model(verbose=False, is_compile=True, **kwargs):
     dense_feat_size = kwargs.pop("dense_feat_size", 128)
     series_length = kwargs.pop("series_length", 61)
     layer_input_series = Input(shape=(series_length, 8), name="input_series")
@@ -190,6 +155,81 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     layer_pooling = concatenate(layer_pooling + [layer_input_feats])
 
     # Output structure
+    layer_output = Dropout(0.25)(layer_pooling)
+    layer_output = Dense(128)(layer_output)
+    layer_output = Dense(19, activation='softmax')(layer_output)
+
+    model = Model([layer_input_series, layer_input_feats], layer_output)
+    if verbose:
+        model.summary()
+    if is_compile:
+        model.compile(loss="categorical_crossentropy",
+                      optimizer=Adam(0.002), metrics=['acc'])
+    return model
+
+
+def build_model(verbose=False, is_compile=True, **kwargs):
+    dense_feat_size = kwargs.pop("dense_feat_size", 128)
+    series_length = kwargs.pop("series_length", 61)
+    layer_input_series = Input(shape=(series_length, 8), name="input_series")
+    layer_input_feats = Input(shape=(dense_feat_size, ), dtype="float32",
+                              name="input_dense")
+
+    # Conv_2d cross channel
+    # -----------------
+    layer_conv_2d = tf.expand_dims(layer_input_series, -1)
+    layer_conv_2d = Conv2D(filters=64,
+                           kernel_size=(3, 3),
+                           activation='relu',
+                           padding='same')(layer_conv_2d)
+    layer_conv_2d = Conv2D(filters=128,
+                           kernel_size=(3, 3),
+                           activation='relu',
+                           padding='same')(layer_conv_2d)
+
+    layer_conv_2d_max_pool = MaxPooling2D(pool_size=(3, 3))(layer_conv_2d)
+    layer_conv_2d_avg_pool = AveragePooling2D(pool_size=(3, 3))(layer_conv_2d)
+
+    layer_conv_2d_max_pool = Dropout(0.2)(layer_conv_2d_max_pool)
+    layer_conv_2d_avg_pool = Dropout(0.15)(layer_conv_2d_avg_pool)
+
+    layer_conv_2d_max_pool = Conv2D(filters=256,
+                                    kernel_size=(3, 3),
+                                    activation='relu',
+                                    padding='same')(layer_conv_2d_max_pool)
+    layer_conv_2d_avg_pool = Conv2D(filters=256,
+                                    kernel_size=(3, 3),
+                                    activation='relu',
+                                    padding='same')(layer_conv_2d_avg_pool)
+
+    layer_conv_2d_max_pool = Dropout(0.1)(layer_conv_2d_max_pool)
+    layer_conv_2d_avg_pool = Dropout(0.15)(layer_conv_2d_avg_pool)
+
+    # Concatenating the pooling layer
+    layer_conv_2d_pooling = []
+    for layer in [layer_conv_2d_max_pool, layer_conv_2d_avg_pool]:
+        layer_conv_2d_pooling.append(GlobalMaxPooling2D()(layer))
+        layer_conv_2d_pooling.append(GlobalAveragePooling2D()(layer))
+
+    # Conv_1d time series
+    # -----------------
+    layer_conv_1d = Conv1D(filters=64,
+                           kernel_size=7,
+                           activation='elu',
+                           padding="same")(layer_input_series)
+
+    layer_conv_1d_avg_pool = GlobalAveragePooling1D()(layer_conv_1d)
+    layer_conv_1d_avg_pool = Dropout(0.1)(layer_conv_1d_avg_pool)
+
+    layer_conv_1d_max_pool = GlobalMaxPooling1D()(layer_conv_1d)
+    layer_conv_1d_max_pool = Dropout(0.1)(layer_conv_1d_max_pool)
+
+    # Concat all
+    # -----------------
+    layer_pooling = concatenate(layer_conv_2d_pooling + [layer_input_feats] + [layer_conv_1d_avg_pool, layer_conv_1d_max_pool])
+
+    # Output structure
+    # -----------------
     layer_output = Dropout(0.25)(layer_pooling)
     layer_output = Dense(128)(layer_output)
     layer_output = Dense(19, activation='softmax')(layer_output)
@@ -246,11 +286,10 @@ if __name__ == "__main__":
     train_feats = X_sc.fit_transform(train_feats)
     test_feats = X_sc.fit_transform(test_feats)
 
-
     # Preparing and training models
     #########################################################################
     N_FOLDS = 5
-    BATCH_SIZE = 4096
+    BATCH_SIZE = 128
     N_EPOCHS = 200
     IS_STRATIFIED = False
     SEED = 1024

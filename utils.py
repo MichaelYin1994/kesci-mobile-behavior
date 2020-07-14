@@ -223,7 +223,7 @@ def clf_pred_to_submission(y_valid=None, y_pred=None, score=None, save_oof=True,
     submission["behavior_id"] = np.argmax(
         y_pred.drop([id_name], axis=1).values, axis=1)
     submission.to_csv(".//submissions//{}.csv".format(file_name),
-                      header=True, index=False)
+                      header=True, index=False, encoding="utf-8")
     print("[INFO] Saving {} to the local.".format(file_name))
     # TODO: Print the ratio of classes
     # print("\n---------------------")

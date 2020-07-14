@@ -45,15 +45,6 @@ def stat_feat_seq(seq=None):
     """Basic feature engineering for each dim"""
     feat_vals, feat_names = [], []
 
-    # for name in seq.columns:
-    #     if name in ["fragment_id", "behavior_id", "time_point"]:
-    #         continue
-    #     std_val = seq[name].std()
-    #     if std_val == 0:
-    #         seq[name] = (seq[name].values - seq[name].mean())
-    #     else:
-    #         seq[name] = (seq[name].values - seq[name].mean()) / seq[name].std()
-
     # Preparing: mod quantile feats
     # https://github.com/ycd2016/xw2020_cnn_baseline/blob/master/baseline.py
     seq["mod"] = np.sqrt(seq["acc_x"]**2 + seq["acc_y"]**2 + seq["acc_z"]**2)
@@ -116,23 +107,30 @@ def stat_feat_seq(seq=None):
     #                                        feat_name=feat_name))
 
     # Step 3: Special count features
-    feat_names.append("between_acc_x")
-    feat_vals.append(seq["acc_x"].between(-0.01, 0.01).sum() / len(seq))
+    pos_upper_bound_list = [0.01] + np.linspace(0.05, 1, 13).tolist()
+    pos_lower_bound_list = [-0.01] + (-np.linspace(0.05, 1, 13)).tolist()
+    for low, high in zip(pos_lower_bound_list, pos_upper_bound_list):
+        feat_names.append("between_acc_x_{}_{}".format(low, high))
+        feat_vals.append(seq["acc_x"].between(low, high).sum() / len(seq))
+    
+        feat_names.append("between_acc_y_{}_{}".format(low, high))
+        feat_vals.append(seq["acc_y"].between(low, high).sum() / len(seq))
+    
+        feat_names.append("between_acc_z_{}_{}".format(low, high))
+        feat_vals.append(seq["acc_z"].between(low, high).sum() / len(seq))
 
-    feat_names.append("between_acc_y")
-    feat_vals.append(seq["acc_y"].between(-0.01, 0.01).sum() / len(seq))
 
-    feat_names.append("between_acc_z")
-    feat_vals.append(seq["acc_z"].between(-0.01, 0.01).sum() / len(seq))
-
-    feat_names.append("between_acc_xg")
-    feat_vals.append(seq["acc_xg"].between(-0.01, 0.01).sum() / len(seq))
-
-    feat_names.append("between_acc_yg")
-    feat_vals.append(seq["acc_yg"].between(-0.01, 0.01).sum() / len(seq))
-
-    feat_names.append("between_acc_zg")
-    feat_vals.append(seq["acc_zg"].between(-0.01, 0.01).sum() / len(seq))
+    acc_upper_bound_list = [0.01] + np.linspace(0.05, 7.5, 17).tolist()
+    acc_lower_bound_list = [-0.01] + (-np.linspace(0.05, 6, 17)).tolist()
+    for low, high in zip(acc_lower_bound_list, acc_upper_bound_list):
+        feat_names.append("between_acc_xg_{}_{}".format(low, high))
+        feat_vals.append(seq["acc_xg"].between(low, high).sum() / len(seq))
+    
+        feat_names.append("between_acc_yg_{}_{}".format(low, high))
+        feat_vals.append(seq["acc_yg"].between(low, high).sum() / len(seq))
+    
+        feat_names.append("between_acc_zg_{}_{}".format(low, high))
+        feat_vals.append(seq["acc_zg"].between(low, high).sum() / len(seq))
 
     # Concat all features
     df = pd.DataFrame(np.array(feat_vals).reshape((1, -1)),
@@ -169,24 +167,24 @@ if __name__ == "__main__":
     embedding_feats = file_processor.load_data(path=".//data_tmp//embedding_df.pkl")
 
     # ##########################################################################
-    # total_feats = pd.merge(total_feats, stat_feats, on="fragment_id", how="left")
-    # # total_feats = pd.merge(total_feats, embedding_feats, on="fragment_id", how="left")
+    total_feats = pd.merge(total_feats, stat_feats, on="fragment_id", how="left")
+    # total_feats = pd.merge(total_feats, embedding_feats, on="fragment_id", how="left")
 
-    # train_feats = total_feats[total_feats["behavior_id"].notnull()]
-    # test_feats = total_feats[total_feats["behavior_id"].isnull()].drop("behavior_id", axis=1).reset_index(drop=True)
+    train_feats = total_feats[total_feats["behavior_id"].notnull()]
+    test_feats = total_feats[total_feats["behavior_id"].isnull()].drop("behavior_id", axis=1).reset_index(drop=True)
 
-    # n_folds = 5
-    # scores, importances, oof_pred, y_pred = lightgbm_classifier_training(train_df=train_feats, 
-    #                                                                       test_df=test_feats,
-    #                                                                       id_name="fragment_id",
-    #                                                                       target_name="behavior_id",
-    #                                                                       stratified=True, 
-    #                                                                       shuffle=True,
-    #                                                                       n_classes=19,
-    #                                                                       n_folds=n_folds)
-    # clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
-    #                         target_name="behavior_id", id_name="fragment_id",
-    #                         sub_str_field="lgb_{}".format(n_folds), save_oof=False)
+    n_folds = 5
+    scores, importances, oof_pred, y_pred = lightgbm_classifier_training(train_df=train_feats, 
+                                                                          test_df=test_feats,
+                                                                          id_name="fragment_id",
+                                                                          target_name="behavior_id",
+                                                                          stratified=True, 
+                                                                          shuffle=True,
+                                                                          n_classes=19,
+                                                                          n_folds=n_folds)
+    clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
+                            target_name="behavior_id", id_name="fragment_id",
+                            sub_str_field="lgb_{}".format(n_folds), save_oof=False)
 
     IS_SAVE_STAT_FEATS = True
     if IS_SAVE_STAT_FEATS:
