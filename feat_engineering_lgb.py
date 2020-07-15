@@ -52,7 +52,7 @@ def stat_feat_seq(seq=None):
 
     # Step 1: Basic stat features of each column
     stat_feat_fcns = [np.ptp, np.std]
-    for col_name in ["acc_x", "acc_y", "acc_z", "acc_xg", "acc_yg", "acc_zg", "mod", "modg"]:
+    for col_name in ["mod", "modg"]:
         for fcn in stat_feat_fcns:
             feat_names.append("stat_{}_{}".format(col_name, fcn.__name__))
             feat_vals.append(fcn(seq[col_name]))
@@ -107,8 +107,8 @@ def stat_feat_seq(seq=None):
     #                                        feat_name=feat_name))
 
     # Step 3: Special count features
-    pos_upper_bound_list = [0.01] + np.linspace(0.05, 1, 13).tolist()
-    pos_lower_bound_list = [-0.01] + (-np.linspace(0.05, 1, 13)).tolist()
+    pos_upper_bound_list = [0.01] #+ np.linspace(0.05, 1, 3).tolist()
+    pos_lower_bound_list = [-0.01] #+ (-np.linspace(0.05, 1, 3)).tolist()
     for low, high in zip(pos_lower_bound_list, pos_upper_bound_list):
         feat_names.append("between_acc_x_{}_{}".format(low, high))
         feat_vals.append(seq["acc_x"].between(low, high).sum() / len(seq))
@@ -120,8 +120,8 @@ def stat_feat_seq(seq=None):
         feat_vals.append(seq["acc_z"].between(low, high).sum() / len(seq))
 
 
-    acc_upper_bound_list = [0.01] + np.linspace(0.05, 7.5, 17).tolist()
-    acc_lower_bound_list = [-0.01] + (-np.linspace(0.05, 6, 17)).tolist()
+    acc_upper_bound_list = [0.01] #+ np.linspace(0.05, 7.5, 3).tolist()
+    acc_lower_bound_list = [-0.01] #+ (-np.linspace(0.05, 6, 3)).tolist()
     for low, high in zip(acc_lower_bound_list, acc_upper_bound_list):
         feat_names.append("between_acc_xg_{}_{}".format(low, high))
         feat_vals.append(seq["acc_xg"].between(low, high).sum() / len(seq))
