@@ -34,6 +34,7 @@ from tensorflow.keras import backend as K
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import f1_score, accuracy_score
 from sklearn.model_selection import StratifiedKFold, KFold
+from scipy.signal import resample
 
 from utils import LoadSave, acc_combo, clf_pred_to_submission
 from dingtalk_remote_monitor import RemoteMonitorDingTalk, send_msg_to_dingtalk
@@ -86,27 +87,28 @@ def interp_seq(seq=None, length_interp=61):
     """Interpolating a seq to the fixed length_interp."""
     if len(seq) == length_interp:
         return seq
-
-    n_interps = length_interp - len(seq)
-    interp_df = np.empty((n_interps, seq.shape[1]))
+    interp_df = np.empty((length_interp, seq.shape[1]))
     interp_df[:] = np.nan
 
-    interp_pos = np.random.randint(1, len(seq)-1, n_interps)
-    interp_df = pd.DataFrame(interp_df, columns=list(seq.columns), index=interp_pos)
-    seq = seq.append(interp_df).sort_index()
-    seq = seq.interpolate(method="polynomial", order=3).reset_index(drop=True)
-    return seq
+    # n_interps = length_interp - len(seq)
+    # interp_pos = np.random.randint(1, len(seq)-1, n_interps)
+    # interp_df = pd.DataFrame(interp_df, columns=list(seq.columns), index=interp_pos)
+    # seq = seq.append(interp_df).sort_index()
+    # seq = seq.interpolate(method="polynomial", order=3).reset_index(drop=True)
+
+    for i in range(seq.shape[1]):
+        interp_df[:, i] = resample(seq.values[:, i], length_interp)
+    return interp_df
 
 
-def preprocessing_seq(seq=None, length_interp=61):
+def preprocessing_seq(seq=None, length_interp=65):
     """Interpolating a seq on selected feattures to the fixed length_interp"""
     seq["mod"] = np.sqrt(seq["acc_x"]**2 + seq["acc_y"]**2 + seq["acc_z"]**2)
     seq["modg"] = np.sqrt(seq["acc_xg"]**2 + seq["acc_yg"]**2 + seq["acc_zg"]**2)
 
     selected_feats = ["acc_x", "acc_y", "acc_z", "acc_xg", "acc_yg", "acc_zg", "mod", "modg"]
     seq = interp_seq(seq[selected_feats], length_interp=length_interp)
-
-    return seq.values
+    return seq
 
 
 def build_model_baseline(verbose=False, is_compile=True, **kwargs):
@@ -174,48 +176,88 @@ def build_model(verbose=False, is_compile=True, **kwargs):
 
     # Conv_2d cross channel
     # -----------------
-    layer_conv_2d = tf.expand_dims(layer_input_series, -1)
-    layer_conv_2d = Conv2D(filters=64,
-                           kernel_size=(5, 3),
-                           activation='relu',
-                           padding='same')(layer_conv_2d)
-    layer_conv_2d = Conv2D(filters=256,
-                            kernel_size=(3, 3),
-                            activation='relu',
-                            padding='same')(layer_conv_2d)
+    # layer_conv_2d = tf.expand_dims(layer_input_series, -1)
+    # layer_conv_2d = Conv2D(filters=64,
+    #                         kernel_size=(5, 3),
+    #                         activation='relu',
+    #                         padding='same')(layer_conv_2d)
+    # layer_conv_2d = Conv2D(filters=64,
+    #                         kernel_size=(3, 3),
+    #                         activation='relu',
+    #                         padding='same')(layer_conv_2d)
 
-    layer_conv_2d_max_pool = MaxPooling2D(pool_size=(3, 3))(layer_conv_2d)
-    layer_conv_2d_avg_pool = AveragePooling2D(pool_size=(3, 3))(layer_conv_2d)
+    # layer_conv_2d_max_pool = MaxPooling2D(pool_size=(3, 3))(layer_conv_2d)
+    # layer_conv_2d_avg_pool = AveragePooling2D(pool_size=(3, 3))(layer_conv_2d)
 
-    layer_conv_2d_max_pool = Dropout(0.25)(layer_conv_2d_max_pool)
-    layer_conv_2d_avg_pool = Dropout(0.25)(layer_conv_2d_avg_pool)
+    # layer_conv_2d_max_pool = Dropout(0.25)(layer_conv_2d_max_pool)
+    # layer_conv_2d_avg_pool = Dropout(0.25)(layer_conv_2d_avg_pool)
 
-    layer_conv_2d_max_pool = Conv2D(filters=128,
-                                    kernel_size=(3, 3),
-                                    activation='relu',
-                                    padding='same')(layer_conv_2d_max_pool)
-    layer_conv_2d_avg_pool = Conv2D(filters=128,
-                                    kernel_size=(3, 3),
-                                    activation='relu',
-                                    padding='same')(layer_conv_2d_avg_pool)
+    # layer_conv_2d_max_pool = Conv2D(filters=128,
+    #                                 kernel_size=(3, 3),
+    #                                 activation='relu',
+    #                                 padding='same')(layer_conv_2d_max_pool)
+    # layer_conv_2d_avg_pool = Conv2D(filters=128,
+    #                                 kernel_size=(3, 3),
+    #                                 activation='relu',
+    #                                 padding='same')(layer_conv_2d_avg_pool)
 
-    layer_conv_2d_max_pool = Dropout(0.25)(layer_conv_2d_max_pool)
-    layer_conv_2d_avg_pool = Dropout(0.25)(layer_conv_2d_avg_pool)
+    # layer_conv_2d_max_pool = Dropout(0.25)(layer_conv_2d_max_pool)
+    # layer_conv_2d_avg_pool = Dropout(0.25)(layer_conv_2d_avg_pool)
+
+    # # Concatenating the pooling layer
+    # layer_conv_2d_pooling = []
+    # for layer in [layer_conv_2d_max_pool, layer_conv_2d_avg_pool]:
+    #     layer_conv_2d_pooling.append(GlobalMaxPooling2D()(layer))
+    #     layer_conv_2d_pooling.append(GlobalAveragePooling2D()(layer))
+
+    # GRU CNN-2D
+    # -----------------
+    layer_gru = Bidirectional(GRU(30, return_sequences=True))(layer_input_series)
+
+    # layer_avg_pool_gru = GlobalAveragePooling1D()(layer_gru)
+    # layer_max_pool_gru = GlobalMaxPooling1D()(layer_gru)
+
+    layer_gru_conv_2d = tf.expand_dims(layer_gru, -1)
+    layer_gru_conv_2d = Conv2D(filters=32,
+                               kernel_size=(5, 5),
+                               activation='relu',
+                               padding='same')(layer_gru_conv_2d)
+    layer_gru_conv_2d = Conv2D(filters=64,
+                               kernel_size=(5, 5),
+                               activation='relu',
+                               padding='same')(layer_gru_conv_2d)
+
+    layer_gru_conv_2d_max_pool = MaxPooling2D(pool_size=(3, 3))(layer_gru_conv_2d)
+    layer_gru_conv_2d_avg_pool = AveragePooling2D(pool_size=(3, 3))(layer_gru_conv_2d)
+
+    layer_gru_conv_2d_max_pool = Dropout(0.17)(layer_gru_conv_2d_max_pool)
+    layer_gru_conv_2d_avg_pool = Dropout(0.15)(layer_gru_conv_2d_avg_pool)
+
+    layer_gru_conv_2d_max_pool = Conv2D(filters=128,
+                                        kernel_size=(3, 3),
+                                        activation='relu',
+                                        padding='same')(layer_gru_conv_2d_max_pool)
+    layer_gru_conv_2d_avg_pool = Conv2D(filters=128,
+                                        kernel_size=(3, 3),
+                                        activation='relu',
+                                        padding='same')(layer_gru_conv_2d_avg_pool)
+
+    layer_gru_conv_2d_max_pool = Dropout(0.22)(layer_gru_conv_2d_max_pool)
+    layer_gru_conv_2d_avg_pool = Dropout(0.17)(layer_gru_conv_2d_avg_pool)
 
     # Concatenating the pooling layer
-    layer_conv_2d_pooling = []
-    for layer in [layer_conv_2d_max_pool, layer_conv_2d_avg_pool]:
-        layer_conv_2d_pooling.append(GlobalMaxPooling2D()(layer))
-        layer_conv_2d_pooling.append(GlobalAveragePooling2D()(layer))
-
+    layer_gru_conv_2d_pooling = []
+    for layer in [layer_gru_conv_2d_max_pool, layer_gru_conv_2d_avg_pool]:
+        layer_gru_conv_2d_pooling.append(GlobalMaxPooling2D()(layer))
+        layer_gru_conv_2d_pooling.append(GlobalAveragePooling2D()(layer))
 
     # Concat all
     # -----------------
-    layer_pooling = concatenate(layer_conv_2d_pooling + [layer_input_feats])
+    layer_pooling = concatenate([layer_input_feats] + layer_gru_conv_2d_pooling)
 
     # Output structure
     # -----------------
-    layer_output = Dropout(0.2)(layer_pooling)
+    layer_output = Dropout(0.21)(layer_pooling)
     layer_output = Dense(128)(layer_output)
     layer_output = Dense(19, activation='softmax')(layer_output)
 
@@ -253,6 +295,7 @@ if __name__ == "__main__":
     ##########################################################################
     # Step 1: Interpolate all the sequence to the fixed length
     # ------------------------
+    res = preprocessing_seq(total_data[0].copy())
     with mp.Pool(processes=mp.cpu_count()) as p:
         tmp = list(tqdm(p.imap(preprocessing_seq, total_data),
                         total=len(total_data)))
@@ -274,7 +317,7 @@ if __name__ == "__main__":
     # Preparing and training models
     #########################################################################
     N_FOLDS = 5
-    BATCH_SIZE = 1024
+    BATCH_SIZE = 1408
     N_EPOCHS = 500
     IS_STRATIFIED = False
     SEED = 1024

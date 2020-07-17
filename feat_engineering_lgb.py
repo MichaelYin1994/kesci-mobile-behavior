@@ -167,24 +167,24 @@ if __name__ == "__main__":
     embedding_feats = file_processor.load_data(path=".//data_tmp//embedding_df.pkl")
 
     # ##########################################################################
-    total_feats = pd.merge(total_feats, stat_feats, on="fragment_id", how="left")
-    # total_feats = pd.merge(total_feats, embedding_feats, on="fragment_id", how="left")
+    # total_feats = pd.merge(total_feats, stat_feats, on="fragment_id", how="left")
+    # # total_feats = pd.merge(total_feats, embedding_feats, on="fragment_id", how="left")
 
-    train_feats = total_feats[total_feats["behavior_id"].notnull()]
-    test_feats = total_feats[total_feats["behavior_id"].isnull()].drop("behavior_id", axis=1).reset_index(drop=True)
+    # train_feats = total_feats[total_feats["behavior_id"].notnull()]
+    # test_feats = total_feats[total_feats["behavior_id"].isnull()].drop("behavior_id", axis=1).reset_index(drop=True)
 
-    n_folds = 5
-    scores, importances, oof_pred, y_pred = lightgbm_classifier_training(train_df=train_feats, 
-                                                                          test_df=test_feats,
-                                                                          id_name="fragment_id",
-                                                                          target_name="behavior_id",
-                                                                          stratified=True, 
-                                                                          shuffle=True,
-                                                                          n_classes=19,
-                                                                          n_folds=n_folds)
-    clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
-                            target_name="behavior_id", id_name="fragment_id",
-                            sub_str_field="lgb_{}".format(n_folds), save_oof=False)
+    # n_folds = 5
+    # scores, importances, oof_pred, y_pred = lightgbm_classifier_training(train_df=train_feats, 
+    #                                                                       test_df=test_feats,
+    #                                                                       id_name="fragment_id",
+    #                                                                       target_name="behavior_id",
+    #                                                                       stratified=True, 
+    #                                                                       shuffle=True,
+    #                                                                       n_classes=19,
+    #                                                                       n_folds=n_folds)
+    # clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
+    #                         target_name="behavior_id", id_name="fragment_id",
+    #                         sub_str_field="lgb_{}".format(n_folds), save_oof=False)
 
     IS_SAVE_STAT_FEATS = True
     if IS_SAVE_STAT_FEATS:
