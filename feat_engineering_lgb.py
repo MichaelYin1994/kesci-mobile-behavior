@@ -107,8 +107,8 @@ def stat_feat_seq(seq=None):
     #                                        feat_name=feat_name))
 
     # Step 3: Special count features
-    pos_upper_bound_list = [0.01] #+ np.linspace(0.05, 1, 3).tolist()
-    pos_lower_bound_list = [-0.01] #+ (-np.linspace(0.05, 1, 3)).tolist()
+    pos_upper_bound_list = [0.01, 0.5, 1] #+ np.linspace(0.05, 1, 3).tolist()
+    pos_lower_bound_list = [-0.01, 0.5, 1] #+ (-np.linspace(0.05, 1, 3)).tolist()
     for low, high in zip(pos_lower_bound_list, pos_upper_bound_list):
         feat_names.append("between_acc_x_{}_{}".format(low, high))
         feat_vals.append(seq["acc_x"].between(low, high).sum() / len(seq))
@@ -120,8 +120,8 @@ def stat_feat_seq(seq=None):
         feat_vals.append(seq["acc_z"].between(low, high).sum() / len(seq))
 
 
-    acc_upper_bound_list = [0.01] #+ np.linspace(0.05, 7.5, 3).tolist()
-    acc_lower_bound_list = [-0.01] #+ (-np.linspace(0.05, 6, 3)).tolist()
+    acc_upper_bound_list = [0.01, 0.5, 1] #+ np.linspace(0.05, 7.5, 3).tolist()
+    acc_lower_bound_list = [-0.01, 0.5, 1] #+ (-np.linspace(0.05, 6, 3)).tolist()
     for low, high in zip(acc_lower_bound_list, acc_upper_bound_list):
         feat_names.append("between_acc_xg_{}_{}".format(low, high))
         feat_vals.append(seq["acc_xg"].between(low, high).sum() / len(seq))
