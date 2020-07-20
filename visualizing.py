@@ -148,18 +148,17 @@ def plot_interp_seq(seq=None, seq_interp=None):
 
     for ind, name in enumerate(feat_names):
         ax = ax_objs[ind]
-        ax.plot(seq[name].values, color="k", marker="o", markersize=5,
-                linewidth=1.8, linestyle="--", label=name)
-        ax.plot(seq_interp["time_point"].values, seq_interp[name].values, color="r", marker="s", markersize=3,
-                linewidth=1.1, linestyle=" ", label=name)
+        ax.plot(seq["time_point"].values, seq[name].values, color="k", marker="o", markersize=5,
+                linewidth=2, linestyle="--", label=name)
+        ax.plot(seq_interp["time_point"].values, seq_interp[name].values, color="red", marker="s", markersize=1.8,
+                linewidth=2, linestyle=" ", label=name)
 
-        tmp_vals = resample(seq[name].values, len(seq_interp))
-        ax.plot(seq_interp["time_point"].values, tmp_vals, color="g", marker="^", markersize=3,
-                linewidth=1.8, linestyle="--", label="Resample")
+        # tmp_vals = resample(seq[name].values, len(seq_interp))
+        # ax.plot(seq_interp["time_point"].values, tmp_vals, color="g", marker="^", markersize=3,
+        #         linewidth=1.8, linestyle="--", label="Resample")
 
-        tmp_vals = savgol_filter(tmp_vals, window_length=7,
-                                 polyorder=3)
-        ax.plot(tmp_vals, color="b", marker="^", markersize=3,
+        tmp_vals = savgol_filter(seq_interp[name].values, window_length=5, polyorder=3)
+        ax.plot(seq_interp["time_point"].values, tmp_vals, color="b", marker="^", markersize=3,
                 linewidth=1.8, linestyle="--", label="S-G filter")
 
         ax.set_xlim(0,  )
@@ -209,6 +208,10 @@ if __name__ == "__main__":
     # total_feats["fragment_id"] = fragment_id
     # total_feats["behavior_id"] = labels + [np.nan] * len(test_data)
 
+    # train_concat = pd.read_csv(".//data//sensor_train.csv")
+    # test_concat = pd.read_csv(".//data//sensor_test.csv")
+    # train_concat["fragment_id"] = train_concat["fragment_id"] + 10000000
+
     # ##########################################################################
     # # Step 1: Basic stat feature engineering
     # # ------------------------
@@ -224,10 +227,70 @@ if __name__ == "__main__":
     # file_processor = LoadSave()
     # embedding_feats = file_processor.load_data(path=".//data_tmp//embedding_df.pkl")
 
+    # total_feats = pd.merge(total_feats, stat_feats, on="fragment_id", how="left")
+    # train_feats = total_feats[total_feats["behavior_id"].notnull()]
+    # test_feats = total_feats[total_feats["behavior_id"].isnull()].drop("behavior_id", axis=1).reset_index(drop=True)
+
     ###########################################################################
     '''
-    Plot 1: Random sequence visualizing.
+    Plot 1: Random sequence and sequence-interp visualizing.
     '''
-    seq = total_data[1104]
-    seq_interp = interp_seq(seq.copy(), 200)
-    plot_interp_seq(seq, seq_interp)
+    # plt.close("all")
+    # seq = total_data[1104]
+    # seq_interp = interp_seq(seq.copy(), 100)
+    # plot_interp_seq(seq, seq_interp)
+
+    '''
+    Plot 2: Distribution of train and testing data
+    '''
+    # fig, ax_objs = plt.subplots(1, 2, figsize=(12, 6))
+    # ax_objs = ax_objs.ravel()
+
+    # for ind, data in enumerate([train_concat, test_concat]):
+    #     data["mod"] = np.sqrt(data["acc_x"]**2 + data["acc_y"]**2 + data["acc_z"]**2)
+    #     data["modg"] = np.sqrt(data["acc_xg"]**2 + data["acc_yg"]**2 + data["acc_zg"]**2)
+
+    #     data["acc_x"] = data["acc_x"] / data["mod"]
+    #     data["acc_y"] = data["acc_y"] / data["mod"]
+    #     data["acc_z"] = data["acc_z"] / data["mod"]
+
+    #     data["acc_xg"] = data["acc_xg"] / data["modg"]
+    #     data["acc_yg"] = data["acc_yg"] / data["modg"]
+    #     data["acc_zg"] = data["acc_zg"] / data["modg"]
+
+    #     ax = ax_objs[ind]
+    #     ax = sns.boxplot(data=data[["acc_x", "acc_y", "acc_z", "acc_xg", "acc_yg", "acc_zg"]],
+    #                       orient="v", ax=ax)
+
+    #     ax.tick_params(axis="both", labelsize=8)
+    #     ax.grid(True)
+    # plt.tight_layout()
+
+
+    # fig, ax_objs = plt.subplots(3, 2, figsize=(14, 10))
+    # ax_objs = ax_objs.ravel()
+
+    # for ind, feat_name in enumerate(["acc_x", "acc_y", "acc_z", "acc_xg", "acc_yg", "acc_zg"]):
+    #     ax = ax_objs[ind]
+    #     ax = sns.distplot(train_concat[feat_name].values,
+    #                       bins=50, kde=True, color="r", ax=ax)
+    #     ax = sns.distplot(test_concat[feat_name].values,
+    #                       bins=50, kde=True, color="g", ax=ax)
+    #     ax.tick_params(axis="both", labelsize=8)
+    #     ax.grid(True)
+    # plt.tight_layout()
+
+
+    plt.close("all")
+    fig, ax_objs = plt.subplots(3, 2, figsize=(14, 10))
+    ax_objs = ax_objs.ravel()
+
+    for ind, feat_name in enumerate(["stat_acc_zg_ptp", "stat_acc_zg_amax", "stat_acc_zg_amin", "stat_acc_zg_mean", "stat_acc_zg_std", "stat_acc_zg_median"]):
+        ax = ax_objs[ind]
+        ax = sns.distplot(train_feats[feat_name].values,
+                          bins=50, kde=True, color="r", ax=ax)
+        ax = sns.distplot(test_feats[feat_name].values,
+                          bins=50, kde=True, color="g", ax=ax)
+        ax.tick_params(axis="both", labelsize=8)
+        ax.grid(True)
+    plt.tight_layout()

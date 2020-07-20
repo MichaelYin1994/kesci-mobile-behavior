@@ -51,8 +51,8 @@ def stat_feat_seq(seq=None):
     seq["modg"] = np.sqrt(seq["acc_xg"]**2 + seq["acc_yg"]**2 + seq["acc_zg"]**2)
 
     # Step 1: Basic stat features of each column
-    stat_feat_fcns = [np.ptp, np.std]
-    for col_name in ["mod", "modg"]:
+    stat_feat_fcns = [np.std, np.ptp]
+    for col_name in ["acc_xg", "acc_zg"]:
         for fcn in stat_feat_fcns:
             feat_names.append("stat_{}_{}".format(col_name, fcn.__name__))
             feat_vals.append(fcn(seq[col_name]))
@@ -77,10 +77,10 @@ def stat_feat_seq(seq=None):
     #                                        feat_name=feat_name))
 
     # feat_name = "acc_xg"
-    # quantile = np.linspace(0.02, 0.99, 17)
+    # quantile = np.linspace(0.02, 0.99, 6)
     # feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     # feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
-    #                                        feat_name=feat_name))
+    #                                         feat_name=feat_name))
 
     # feat_name = "acc_yg"
     # quantile = np.linspace(0.02, 0.99, 17)
@@ -89,10 +89,10 @@ def stat_feat_seq(seq=None):
     #                                        feat_name=feat_name))
 
     # feat_name = "acc_zg"
-    # quantile = np.linspace(0.02, 0.99, 17)
+    # quantile = np.linspace(0.02, 0.99, 6)
     # feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     # feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
-    #                                        feat_name=feat_name))
+    #                                         feat_name=feat_name))
 
     # feat_name = "mod"
     # quantile = np.linspace(0.1, 0.95, 7)
@@ -107,30 +107,30 @@ def stat_feat_seq(seq=None):
     #                                        feat_name=feat_name))
 
     # Step 3: Special count features
-    pos_upper_bound_list = [0.01, 0.5, 1] #+ np.linspace(0.05, 1, 3).tolist()
-    pos_lower_bound_list = [-0.01, 0.5, 1] #+ (-np.linspace(0.05, 1, 3)).tolist()
-    for low, high in zip(pos_lower_bound_list, pos_upper_bound_list):
-        feat_names.append("between_acc_x_{}_{}".format(low, high))
-        feat_vals.append(seq["acc_x"].between(low, high).sum() / len(seq))
+    # pos_upper_bound_list = [0.5, 1.5, 2] #+ np.linspace(0.05, 1, 3).tolist()
+    # pos_lower_bound_list = [-0.5, 1.5, 2] #+ (-np.linspace(0.05, 1, 3)).tolist()
+    # for low, high in zip(pos_lower_bound_list, pos_upper_bound_list):
+    #     feat_names.append("between_acc_x_{}_{}".format(low, high))
+    #     feat_vals.append(seq["acc_x"].between(low, high).sum() / len(seq))
     
-        feat_names.append("between_acc_y_{}_{}".format(low, high))
-        feat_vals.append(seq["acc_y"].between(low, high).sum() / len(seq))
+    #     feat_names.append("between_acc_y_{}_{}".format(low, high))
+    #     feat_vals.append(seq["acc_y"].between(low, high).sum() / len(seq))
     
-        feat_names.append("between_acc_z_{}_{}".format(low, high))
-        feat_vals.append(seq["acc_z"].between(low, high).sum() / len(seq))
+    #     feat_names.append("between_acc_z_{}_{}".format(low, high))
+    #     feat_vals.append(seq["acc_z"].between(low, high).sum() / len(seq))
 
 
-    acc_upper_bound_list = [0.01, 0.5, 1] #+ np.linspace(0.05, 7.5, 3).tolist()
-    acc_lower_bound_list = [-0.01, 0.5, 1] #+ (-np.linspace(0.05, 6, 3)).tolist()
-    for low, high in zip(acc_lower_bound_list, acc_upper_bound_list):
-        feat_names.append("between_acc_xg_{}_{}".format(low, high))
-        feat_vals.append(seq["acc_xg"].between(low, high).sum() / len(seq))
+    # acc_upper_bound_list = [1, 3, 5] #+ np.linspace(0.05, 7.5, 3).tolist()
+    # acc_lower_bound_list = [-1, 3, 5] #+ (-np.linspace(0.05, 6, 3)).tolist()
+    # for low, high in zip(acc_lower_bound_list, acc_upper_bound_list):
+    #     feat_names.append("between_acc_xg_{}_{}".format(low, high))
+    #     feat_vals.append(seq["acc_xg"].between(low, high).sum() / len(seq))
     
-        feat_names.append("between_acc_yg_{}_{}".format(low, high))
-        feat_vals.append(seq["acc_yg"].between(low, high).sum() / len(seq))
+    #     feat_names.append("between_acc_yg_{}_{}".format(low, high))
+    #     feat_vals.append(seq["acc_yg"].between(low, high).sum() / len(seq))
     
-        feat_names.append("between_acc_zg_{}_{}".format(low, high))
-        feat_vals.append(seq["acc_zg"].between(low, high).sum() / len(seq))
+    #     feat_names.append("between_acc_zg_{}_{}".format(low, high))
+    #     feat_vals.append(seq["acc_zg"].between(low, high).sum() / len(seq))
 
     # Concat all features
     df = pd.DataFrame(np.array(feat_vals).reshape((1, -1)),
@@ -166,7 +166,7 @@ if __name__ == "__main__":
     file_processor = LoadSave()
     embedding_feats = file_processor.load_data(path=".//data_tmp//embedding_df.pkl")
 
-    # ##########################################################################
+    ##########################################################################
     # total_feats = pd.merge(total_feats, stat_feats, on="fragment_id", how="left")
     # # total_feats = pd.merge(total_feats, embedding_feats, on="fragment_id", how="left")
 
