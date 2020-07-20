@@ -137,11 +137,11 @@ def build_model_baseline(verbose=False, is_compile=True, **kwargs):
     layer_max_pool = MaxPooling2D(pool_size=(3, 3))(layer_series)
     layer_avg_pool = AveragePooling2D(pool_size=(3, 3))(layer_series)
 
-    layer_conv_max_pool = Conv2D(filters=256,
+    layer_conv_max_pool = Conv2D(filters=128,
                                  kernel_size=(3, 3),
                                  activation='relu',
                                  padding='same')(layer_max_pool)
-    layer_conv_avg_pool = Conv2D(filters=256,
+    layer_conv_avg_pool = Conv2D(filters=128,
                                  kernel_size=(3, 3),
                                  activation='relu',
                                  padding='same')(layer_avg_pool)
@@ -172,26 +172,26 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     series_length = kwargs.pop("series_length", 61)
     series_feat_size = kwargs.pop("series_feat_size", 8)
     layer_input_series = Input(shape=(series_length, series_feat_size), name="input_series")
-    # layer_input_feats = Input(shape=(dense_feat_size, ), dtype="float32",
-    #                           name="input_dense")
+    layer_input_feats = Input(shape=(dense_feat_size, ), dtype="float32",
+                              name="input_dense")
 
     # Conv_2d cross channel
     # -----------------
     layer_conv_2d = tf.expand_dims(layer_input_series, -1)
     layer_conv_2d = Conv2D(filters=64,
-                           kernel_size=(7, 3),
+                           kernel_size=(11, 3),
                            activation='relu',
                            padding='same')(layer_conv_2d)
     layer_conv_2d = Conv2D(filters=64,
-                           kernel_size=(13, 5),
+                           kernel_size=(5, 3),
                            activation='relu',
                            padding='same')(layer_conv_2d)
 
     layer_conv_2d_max_pool = MaxPooling2D(pool_size=(3, 3))(layer_conv_2d)
     layer_conv_2d_avg_pool = AveragePooling2D(pool_size=(3, 3))(layer_conv_2d)
 
-    layer_conv_2d_max_pool = Dropout(0.15)(layer_conv_2d_max_pool)
-    layer_conv_2d_avg_pool = Dropout(0.15)(layer_conv_2d_avg_pool)
+    layer_conv_2d_max_pool = Dropout(0.16)(layer_conv_2d_max_pool)
+    layer_conv_2d_avg_pool = Dropout(0.13)(layer_conv_2d_avg_pool)
 
     layer_conv_2d_max_pool = Conv2D(filters=128,
                                     kernel_size=(3, 3),
@@ -202,8 +202,8 @@ def build_model(verbose=False, is_compile=True, **kwargs):
                                     activation='relu',
                                     padding='same')(layer_conv_2d_avg_pool)
 
-    layer_conv_2d_max_pool = Dropout(0.15)(layer_conv_2d_max_pool)
-    layer_conv_2d_avg_pool = Dropout(0.15)(layer_conv_2d_avg_pool)
+    layer_conv_2d_max_pool = Dropout(0.2)(layer_conv_2d_max_pool)
+    layer_conv_2d_avg_pool = Dropout(0.17)(layer_conv_2d_avg_pool)
 
     # Concatenating the pooling layer
     layer_conv_2d_pooling = []
@@ -213,15 +213,15 @@ def build_model(verbose=False, is_compile=True, **kwargs):
 
     # Concat all
     # -----------------
-    layer_pooling = concatenate(layer_conv_2d_pooling)
+    layer_pooling = concatenate(layer_conv_2d_pooling + [layer_input_feats])
 
     # Output structure
     # -----------------
-    layer_output = Dropout(0.18)(layer_pooling)
+    layer_output = Dropout(0.2)(layer_pooling)
     layer_output = Dense(128, activation="relu")(layer_output)
     layer_output = Dense(19, activation='softmax')(layer_output)
 
-    model = Model([layer_input_series], layer_output)
+    model = Model([layer_input_series, layer_input_feats], layer_output)
     if verbose:
         model.summary()
     if is_compile:
@@ -244,7 +244,7 @@ if __name__ == "__main__":
     total_feats["behavior_id"] = labels + [np.nan] * len(test_data)
     total_feats["is_train"] = [True] * len(train_data) + [False] * len(test_data)
 
-    SENDING_TRAINING_INFO = True
+    SENDING_TRAINING_INFO = False
     send_msg_to_dingtalk("++++++++++++++++++++++++++++", SENDING_TRAINING_INFO)
     INFO_TEXT = "[BEGIN]#Training: {}, #Testing: {}, at: {}".format(
         len(total_feats.query("is_train == True")),
@@ -260,9 +260,7 @@ if __name__ == "__main__":
         tmp = list(tqdm(p.imap(preprocessing_seq, total_data),
                         total=len(total_data)))
     train_seq, test_seq = tmp[:len(train_data)], tmp[len(train_data):]
-    train_seq_aug = np.array([item[::-1] for item in train_seq])
     train_seq, test_seq = np.array(train_seq), np.array(test_seq)
-
 
     # file_processor = LoadSave()
     # file_processor.save_data(path=".//data_tmp//human_activity_recognition.pkl",
@@ -270,21 +268,29 @@ if __name__ == "__main__":
 
     # Step 2: Loading dense features
     # ------------------------
-    # file_processor = LoadSave()
-    # dense_feats = file_processor.load_data(path=".//data_tmp//stat_feats.pkl")
-    # train_feats = dense_feats[dense_feats["behavior_id"].notnull()].drop(
-    #     ["behavior_id", "fragment_id"], axis=1).values
-    # test_feats = dense_feats[dense_feats["behavior_id"].isnull()].drop(
-    #     ["behavior_id", "fragment_id"], axis=1).values
+    file_processor = LoadSave()
+    dense_feats = file_processor.load_data(path=".//data_tmp//stat_feats.pkl")
+    train_feats = dense_feats[dense_feats["behavior_id"].notnull()].drop(
+        ["behavior_id", "fragment_id"], axis=1).values
+    test_feats = dense_feats[dense_feats["behavior_id"].isnull()].drop(
+        ["behavior_id", "fragment_id"], axis=1).values
 
-    # X_sc = StandardScaler()
-    # train_feats = X_sc.fit_transform(train_feats)
-    # test_feats = X_sc.fit_transform(test_feats)
+    train_cv = pd.read_csv(".//submission_oof//32_lgb_10_vf1_8693_vacc_8653_vc_8846_valid.csv")
+    test_cv = pd.read_csv(".//submission_oof//32_lgb_10_vf1_8693_vacc_8653_vc_8846_pred.csv")
+    train_cv = train_cv.drop(["behavior_id", "fragment_id"], axis=1).values
+    test_cv = test_cv.drop(["fragment_id"], axis=1).values
+
+    train_feats = np.hstack([train_feats, train_cv])
+    test_feats = np.hstack([test_feats, test_cv])
+
+    X_sc = StandardScaler()
+    train_feats = X_sc.fit_transform(train_feats)
+    test_feats = X_sc.fit_transform(test_feats)
 
     # Preparing and training models
     #########################################################################
     N_FOLDS = 5
-    BATCH_SIZE = 4046
+    BATCH_SIZE = 200
     N_EPOCHS = 700
     IS_STRATIFIED = False
     SEED = 2090
@@ -314,36 +320,33 @@ if __name__ == "__main__":
     targets_oht = to_categorical(labels)
     for fold, (tra_id, val_id) in enumerate(folds.split(train_seq, targets_oht)):
         d_train, d_valid = train_seq[tra_id], train_seq[val_id]
-        # d_train_dense, d_valid_dense = train_feats[tra_id], train_feats[val_id]
+        d_train_dense, d_valid_dense = train_feats[tra_id], train_feats[val_id]
         t_train, t_valid = targets_oht[tra_id], targets_oht[val_id]
 
         # Destroy all graph nodes in memory
         K.clear_session()
         gc.collect()
 
-        d_train_aug = train_seq_aug[tra_id]
-        d_train_aug = np.vstack([d_train, d_train_aug])
-        t_train_aug = np.vstack([t_train, t_train])
-
         # Training NN classifier
         model = build_model(verbose=False,
                             is_complie=True,
+                            dense_feat_size=d_train_dense.shape[1],
                             series_length=train_seq.shape[1],
                             series_feat_size=train_seq.shape[2])
 
-        model.fit(x=[d_train_aug],
-                  y=t_train_aug,
-                  validation_data=([d_valid], t_valid),
+        model.fit(x=[d_train, d_train_dense],
+                  y=t_train,
+                  validation_data=([d_valid, d_valid_dense], t_valid),
                   callbacks=[early_stop],
                   batch_size=BATCH_SIZE,
                   epochs=N_EPOCHS,
                   verbose=2)
 
-        train_pred_proba = model.predict(x=[d_train],
+        train_pred_proba = model.predict(x=[d_train, d_train_dense],
                                          batch_size=BATCH_SIZE)
-        valid_pred_proba = model.predict(x=[d_valid],
+        valid_pred_proba = model.predict(x=[d_valid, d_valid_dense],
                                          batch_size=BATCH_SIZE)
-        y_pred_proba = model.predict(x=[test_seq],
+        y_pred_proba = model.predict(x=[test_seq, test_feats],
                                      batch_size=BATCH_SIZE)
         y_pred += y_pred_proba / N_FOLDS
 
