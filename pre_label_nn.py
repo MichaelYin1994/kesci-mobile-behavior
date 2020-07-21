@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Sat Jul 11 16:00:03 2020
+Created on Tue Jul 21 18:51:27 2020
 
 @author: zhuoyin94
 """
@@ -64,23 +64,114 @@ def load_data(name=None):
     return data
 
 
-def plot_interp_seq(seq=None, seq_interp=None):
-    feat_names = ["acc_x", "acc_y", "acc_z", "acc_xg", "acc_yg", "acc_zg"]
+def seq_quantile_features(seq, quantile=None, feat_name="x"):
+    """Quantile statistics for a specified feature."""
+    if quantile is None:
+        quantile = [0.1, 0.15, 0.25]
+    if len(seq) == 0:
+        return [0] * len(quantile)
 
-    fig, ax_objs = plt.subplots(6, 1, figsize=(14, 10))
-    ax_objs = ax_objs.ravel()
+    feat_vals = []
+    for qu in quantile:
+        feat_vals.append(seq[feat_name].quantile(qu))
+    return feat_vals
 
-    for ind, name in enumerate(feat_names):
-        ax = ax_objs[ind]
-        ax.plot(seq["time_point"].values, seq[name].values, color="k", marker="o", markersize=5,
-                linewidth=1.8, linestyle="-", label=name)
-        ax.plot(seq_interp["time_point"].values, seq_interp[name].values, color="r", marker="s", markersize=3,
-                linewidth=1.1, linestyle=" ", label=name)
-        # ax.set_xlim(0, len(seq))
-        ax.tick_params(axis="both", labelsize=8)
-        ax.grid(True)
-        ax.legend(fontsize=8, loc='best')
-    plt.tight_layout()
+
+def stat_feat_seq(seq=None):
+    """Basic feature engineering for each dim"""
+    feat_vals, feat_names = [], []
+
+    # Preparing: mod quantile feats
+    # https://github.com/ycd2016/xw2020_cnn_baseline/blob/master/baseline.py
+    seq["mod"] = np.sqrt(seq["acc_x"]**2 + seq["acc_y"]**2 + seq["acc_z"]**2)
+    seq["modg"] = np.sqrt(seq["acc_xg"]**2 + seq["acc_yg"]**2 + seq["acc_zg"]**2)
+
+    # Step 1: Basic stat features of each column
+    stat_feat_fcns = [np.std, np.ptp, np.mean, np.median, np.max]
+    for col_name in ["acc_x", "acc_y", "acc_z", "acc_xg", "acc_yg", "acc_zg", "mod", "modg"]:
+        for fcn in stat_feat_fcns:
+            feat_names.append("stat_{}_{}".format(col_name, fcn.__name__))
+            feat_vals.append(fcn(seq[col_name]))
+
+    # Step 2: Quantile features
+    feat_name = "acc_x"
+    quantile = np.linspace(0.01, 0.98, 7)
+    feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
+    feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
+                                            feat_name=feat_name))
+
+    feat_name = "acc_y"
+    quantile = np.linspace(0.01, 0.98, 7)
+    feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
+    feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
+                                            feat_name=feat_name))
+
+    feat_name = "acc_z"
+    quantile = np.linspace(0.01, 0.99, 7)
+    feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
+    feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
+                                            feat_name=feat_name))
+
+    feat_name = "acc_xg"
+    quantile = np.linspace(0.01, 0.99, 7)
+    feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
+    feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
+                                            feat_name=feat_name))
+
+    feat_name = "acc_yg"
+    quantile = np.linspace(0.01, 0.99, 7)
+    feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
+    feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
+                                            feat_name=feat_name))
+
+    feat_name = "acc_zg"
+    quantile = np.linspace(0.01, 0.99, 7)
+    feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
+    feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
+                                            feat_name=feat_name))
+
+    feat_name = "mod"
+    quantile = np.linspace(0.01, 0.99, 11)
+    feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
+    feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
+                                            feat_name=feat_name))
+
+    feat_name = "modg"
+    quantile = np.linspace(0.01, 0.99, 7)
+    feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
+    feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
+                                            feat_name=feat_name))
+
+    # Step 3: Special count features
+    pos_upper_bound_list = [0.01, 0.5, 1.5, 3, 5] #+ np.linspace(0.05, 1, 3).tolist()
+    pos_lower_bound_list = [-0.01, -0.5, -1.5, -3, 5] #+ (-np.linspace(0.05, 1, 3)).tolist()
+    for low, high in zip(pos_lower_bound_list, pos_upper_bound_list):
+        feat_names.append("between_acc_x_{}_{}".format(low, high))
+        feat_vals.append(seq["acc_x"].between(low, high).sum() / len(seq))
+    
+        feat_names.append("between_acc_y_{}_{}".format(low, high))
+        feat_vals.append(seq["acc_y"].between(low, high).sum() / len(seq))
+    
+        feat_names.append("between_acc_z_{}_{}".format(low, high))
+        feat_vals.append(seq["acc_z"].between(low, high).sum() / len(seq))
+
+
+    acc_upper_bound_list = [0.01, 1.5, 3, 5, 7] #+ np.linspace(0.05, 7.5, 3).tolist()
+    acc_lower_bound_list = [-0.01, -1.5, -3, -5, -7] #+ (-np.linspace(0.05, 6, 3)).tolist()
+    for low, high in zip(acc_lower_bound_list, acc_upper_bound_list):
+        feat_names.append("between_acc_xg_{}_{}".format(low, high))
+        feat_vals.append(seq["acc_xg"].between(low, high).sum() / len(seq))
+    
+        feat_names.append("between_acc_yg_{}_{}".format(low, high))
+        feat_vals.append(seq["acc_yg"].between(low, high).sum() / len(seq))
+    
+        feat_names.append("between_acc_zg_{}_{}".format(low, high))
+        feat_vals.append(seq["acc_zg"].between(low, high).sum() / len(seq))
+
+    # Concat all features
+    df = pd.DataFrame(np.array(feat_vals).reshape((1, -1)),
+                      columns=feat_names)
+    return df
 
 
 def interp_seq(seq=None, length_interp=61):
@@ -111,62 +202,6 @@ def preprocessing_seq(seq=None, length_interp=65):
     return seq
 
 
-def build_model_baseline(verbose=False, is_compile=True, **kwargs):
-    """Baseline deep learning model.
-
-    Referneces:
-    --------
-    [1] https://github.com/ycd2016/xw2020_cnn_baseline/blob/master/baseline.py#L28
-    """
-    dense_feat_size = kwargs.pop("dense_feat_size", 128)
-    series_length = kwargs.pop("series_length", 61)
-    layer_input_series = Input(shape=(series_length, 8), name="input_series")
-    layer_input_feats = Input(shape=(dense_feat_size, ), dtype="float32",
-                              name="input_dense")
-
-    layer_series = tf.expand_dims(layer_input_series, -1)
-    layer_series = Conv2D(filters=64,
-                          kernel_size=(3, 3),
-                          activation='relu',
-                          padding='same')(layer_series)
-    layer_series = Conv2D(filters=64,
-                          kernel_size=(3, 3),
-                          activation='relu',
-                          padding='same')(layer_series)
-
-    layer_max_pool = MaxPooling2D(pool_size=(3, 3))(layer_series)
-    layer_avg_pool = AveragePooling2D(pool_size=(3, 3))(layer_series)
-
-    layer_conv_max_pool = Conv2D(filters=128,
-                                 kernel_size=(3, 3),
-                                 activation='relu',
-                                 padding='same')(layer_max_pool)
-    layer_conv_avg_pool = Conv2D(filters=128,
-                                 kernel_size=(3, 3),
-                                 activation='relu',
-                                 padding='same')(layer_avg_pool)
-
-    # Concatenating the pooling layer
-    layer_pooling = []
-    for layer in [layer_conv_max_pool, layer_conv_avg_pool]:
-        layer_pooling.append(GlobalMaxPooling2D()(layer))
-        layer_pooling.append(GlobalAveragePooling2D()(layer))
-    layer_pooling = concatenate(layer_pooling + [layer_input_feats])
-
-    # Output structure
-    layer_output = Dropout(0.25)(layer_pooling)
-    layer_output = Dense(128)(layer_output)
-    layer_output = Dense(19, activation='softmax')(layer_output)
-
-    model = Model([layer_input_series, layer_input_feats], layer_output)
-    if verbose:
-        model.summary()
-    if is_compile:
-        model.compile(loss="categorical_crossentropy",
-                      optimizer=Adam(0.002), metrics=['acc'])
-    return model
-
-
 def build_model(verbose=False, is_compile=True, **kwargs):
     dense_feat_size = kwargs.pop("dense_feat_size", 128)
     series_length = kwargs.pop("series_length", 61)
@@ -178,7 +213,7 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     # Conv_2d cross channel
     # -----------------
     layer_conv_2d = tf.expand_dims(layer_input_series, -1)
-    layer_conv_2d = Conv2D(filters=64,
+    layer_conv_2d = Conv2D(filters=32,
                            kernel_size=(11, 3),
                            activation='relu',
                            padding='same')(layer_conv_2d)
@@ -188,26 +223,16 @@ def build_model(verbose=False, is_compile=True, **kwargs):
                            padding='same')(layer_conv_2d)
 
     layer_conv_2d_max_pool = MaxPooling2D(pool_size=(3, 3))(layer_conv_2d)
-    layer_conv_2d_avg_pool = AveragePooling2D(pool_size=(3, 3))(layer_conv_2d)
-
     layer_conv_2d_max_pool = Dropout(0.16)(layer_conv_2d_max_pool)
-    layer_conv_2d_avg_pool = Dropout(0.13)(layer_conv_2d_avg_pool)
-
     layer_conv_2d_max_pool = Conv2D(filters=128,
                                     kernel_size=(3, 3),
                                     activation='relu',
                                     padding='same')(layer_conv_2d_max_pool)
-    layer_conv_2d_avg_pool = Conv2D(filters=128,
-                                    kernel_size=(3, 3),
-                                    activation='relu',
-                                    padding='same')(layer_conv_2d_avg_pool)
-
     layer_conv_2d_max_pool = Dropout(0.2)(layer_conv_2d_max_pool)
-    layer_conv_2d_avg_pool = Dropout(0.17)(layer_conv_2d_avg_pool)
 
     # Concatenating the pooling layer
     layer_conv_2d_pooling = []
-    for layer in [layer_conv_2d_max_pool, layer_conv_2d_avg_pool]:
+    for layer in [layer_conv_2d_max_pool]:
         layer_conv_2d_pooling.append(GlobalMaxPooling2D()(layer))
         layer_conv_2d_pooling.append(GlobalAveragePooling2D()(layer))
 
@@ -219,14 +244,14 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     # -----------------
     layer_output = Dropout(0.2)(layer_pooling)
     layer_output = Dense(128, activation="relu")(layer_output)
-    layer_output = Dense(19, activation='softmax')(layer_output)
+    layer_output = Dense(4, activation='softmax')(layer_output)
 
     model = Model([layer_input_series, layer_input_feats], layer_output)
     if verbose:
         model.summary()
     if is_compile:
         model.compile(loss="categorical_crossentropy",
-                      optimizer=Adam(0.004, decay=1e-6), metrics=['acc'])
+                      optimizer=Adam(0.003, decay=1e-6), metrics=['acc'])
     return model
 
 
@@ -237,8 +262,15 @@ if __name__ == "__main__":
     total_data = train_data + test_data
     fragment_id = [seq["fragment_id"].unique()[0] for seq in total_data]
     labels = [seq["behavior_id"].unique()[0] for seq in train_data]
-    seq = total_data[14]
+    mapping = {0: 0, 1: 0, 2: 0, 3: 0,
+               4: 3, 5: 0, 6: 1, 7: 1,
+               8: 1, 9: 1, 10: 1, 11: 0,
+               12: 2, 13: 2, 14: 2, 15: 2,
+               16: 2, 17: 2, 18: 2}
+    labels = [mapping[i] for i in labels]
 
+    seq = total_data[14]
+    # USELESS Features: ["fragment_id", "behavior_id", "is_train"]
     total_feats = pd.DataFrame(None)
     total_feats["fragment_id"] = fragment_id
     total_feats["behavior_id"] = labels + [np.nan] * len(test_data)
@@ -262,22 +294,20 @@ if __name__ == "__main__":
     train_seq, test_seq = tmp[:len(train_data)], tmp[len(train_data):]
     train_seq, test_seq = np.array(train_seq), np.array(test_seq)
 
-    # Step 2: Loading dense features
+
+    # Step 2: Dense feature engineering
     # ------------------------
-    file_processor = LoadSave()
-    dense_feats = file_processor.load_data(path=".//data_tmp//stat_feats.pkl")
-    train_feats = dense_feats[dense_feats["behavior_id"].notnull()].drop(
-        ["behavior_id", "fragment_id"], axis=1).values
-    test_feats = dense_feats[dense_feats["behavior_id"].isnull()].drop(
-        ["behavior_id", "fragment_id"], axis=1).values
+    with mp.Pool(processes=mp.cpu_count()) as p:
+        tmp = list(tqdm(p.imap(stat_feat_seq, total_data),
+                        total=len(total_data)))
+    stat_feats = pd.concat(tmp, axis=0, ignore_index=True)
+    stat_feats["fragment_id"] = fragment_id
+    total_feats = pd.merge(total_feats, stat_feats, on="fragment_id", how="left")
 
-    train_cv = pd.read_csv(".//submission_oof//32_lgb_10_vf1_8693_vacc_8653_vc_8846_valid.csv")
-    test_cv = pd.read_csv(".//submission_oof//32_lgb_10_vf1_8693_vacc_8653_vc_8846_pred.csv")
-    train_cv = train_cv.drop(["behavior_id", "fragment_id"], axis=1).values
-    test_cv = test_cv.drop(["fragment_id"], axis=1).values
-
-    train_feats = np.hstack([train_feats, train_cv])
-    test_feats = np.hstack([test_feats, test_cv])
+    train_feats = total_feats[total_feats["behavior_id"].notnull()].drop(
+        ["behavior_id", "fragment_id", "is_train"], axis=1).values
+    test_feats = total_feats[total_feats["behavior_id"].isnull()].drop(
+        ["behavior_id", "fragment_id", "is_train"], axis=1).values
 
     X_sc = StandardScaler()
     train_feats = X_sc.fit_transform(train_feats)
@@ -289,7 +319,7 @@ if __name__ == "__main__":
     BATCH_SIZE = 200
     N_EPOCHS = 700
     IS_STRATIFIED = False
-    SEED = 2090
+    SEED = 2912
 
     if IS_STRATIFIED:
         folds = StratifiedKFold(n_splits=N_FOLDS,
@@ -301,8 +331,8 @@ if __name__ == "__main__":
                       random_state=SEED)
 
     scores = np.zeros((N_FOLDS, 7))
-    oof_pred = np.zeros((len(train_seq), 19))
-    y_pred = np.zeros((len(test_seq), 19))
+    oof_pred = np.zeros((len(train_seq), 4))
+    y_pred = np.zeros((len(test_seq), 4))
     early_stop = EarlyStopping(monitor='val_acc',
                                mode='max',
                                verbose=1,
@@ -398,12 +428,13 @@ if __name__ == "__main__":
                                            "valid_f1", "valid_acc",
                                            "train_custom", "valid_custom"])
     y_pred = pd.DataFrame(
-        y_pred, columns=["y_pred_{}".format(i) for i in range(19)])
+        y_pred, columns=["y_pred_{}".format(i) for i in range(4)])
     y_pred["fragment_id"] = total_feats.query("is_train == False")["fragment_id"].values
     oof_pred = pd.DataFrame(
-        oof_pred, columns=["oof_pred_{}".format(i) for i in range(19)])
+        oof_pred, columns=["oof_pred_{}".format(i) for i in range(4)])
     oof_pred["fragment_id"], oof_pred["behavior_id"] = total_feats.query("is_train == True")["fragment_id"].values, total_feats.query("is_train == True")["behavior_id"].values
 
     clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
                            target_name="behavior_id", id_name="fragment_id",
-                           sub_str_field="nn_{}".format(N_FOLDS), save_oof=False)
+                           sub_str_field="nn_pred_label_{}".format(N_FOLDS), save_oof=True)
+
