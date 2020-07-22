@@ -208,6 +208,13 @@ if __name__ == "__main__":
     labels = [seq["behavior_id"].unique()[0] for seq in train_data]
     seq = total_data[14]
 
+    mapping = {0: 0, 1: 0, 2: 0, 3: 0,
+                4: 3, 5: 0, 6: 1, 7: 1,
+                8: 1, 9: 1, 10: 1, 11: 0,
+                12: 2, 13: 2, 14: 2, 15: 2,
+                16: 2, 17: 2, 18: 2}
+    labels = [mapping[i] for i in labels]
+
     total_feats = pd.DataFrame(None)
     total_feats["fragment_id"] = fragment_id
     total_feats["behavior_id"] = labels + [np.nan] * len(test_data)
@@ -232,14 +239,14 @@ if __name__ == "__main__":
                                             embedding_size=40,
                                             window_size=15,
                                             min_count=4,
-                                            iters=30,
+                                            iters=20,
                                             is_save_model=True,
                                             model_name="cbow_pos")
     model_cbow_acc = compute_cbow_embedding(corpus=corpus_acc,
                                             embedding_size=30,
                                             window_size=15,
                                             min_count=4,
-                                            iters=30,
+                                            iters=20,
                                             is_save_model=True,
                                             model_name="cbow_acc")
 
@@ -247,14 +254,14 @@ if __name__ == "__main__":
                                                 embedding_size=40,
                                                 window_size=15,
                                                 min_count=4,
-                                                iters=35,
+                                                iters=20,
                                                 is_save_model=True,
                                                 model_name="sg_pos")
     model_sg_acc = compute_skip_gram_embedding(corpus=corpus_acc,
                                                 embedding_size=30,
                                                 window_size=15,
                                                 min_count=4,
-                                                iters=35,
+                                                iters=20,
                                                 is_save_model=True,
                                                 model_name="sg_acc")
 
@@ -278,12 +285,12 @@ if __name__ == "__main__":
 
     # Step 3: TF-IDF features
     # ------------------------
-    # MAX_FEATS = 200
+    # MAX_FEATS = 150
     # corpus_tfidf_pos = [" ".join(item) for item in corpus_pos]
     # tfidf_pos = compute_tfidf_feats(corpus=corpus_tfidf_pos, max_feats=MAX_FEATS)
     # df_tfidf_pos = pd.DataFrame(tfidf_pos, columns=["tfidf_pos_{}".format(i) for i in range(MAX_FEATS)])
 
-    # MAX_FEATS = 200
+    # MAX_FEATS = 150
     # corpus_tfidf_acc = [" ".join(item) for item in corpus_acc]
     # tfidf_acc = compute_tfidf_feats(corpus=corpus_tfidf_acc, max_feats=MAX_FEATS)
     # df_tfidf_acc = pd.DataFrame(tfidf_acc, columns=["tfidf_acc_{}".format(i) for i in range(MAX_FEATS)])
@@ -305,8 +312,8 @@ if __name__ == "__main__":
                                                                           target_name="behavior_id",
                                                                           stratified=True, 
                                                                           shuffle=True,
-                                                                          n_classes=19,
+                                                                          n_classes=4,
                                                                           n_folds=n_folds)
-    clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
-                            target_name="behavior_id", id_name="fragment_id",
-                            sub_str_field="lgb_{}".format(n_folds), save_oof=False)
+    # clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
+    #                         target_name="behavior_id", id_name="fragment_id",
+    #                         sub_str_field="lgb_{}".format(n_folds), save_oof=False)

@@ -36,7 +36,7 @@ from sklearn.metrics import f1_score, accuracy_score
 from sklearn.model_selection import StratifiedKFold, KFold
 from scipy.signal import resample
 
-from utils import LoadSave, acc_combo, clf_pred_to_submission
+from utils import LoadSave, acc_combo, clf_pred_to_submission, plot_metric
 from dingtalk_remote_monitor import RemoteMonitorDingTalk, send_msg_to_dingtalk
 
 # np.random.seed(2022)
@@ -87,86 +87,99 @@ def stat_feat_seq(seq=None):
     seq["modg"] = np.sqrt(seq["acc_xg"]**2 + seq["acc_yg"]**2 + seq["acc_zg"]**2)
 
     # Step 1: Basic stat features of each column
-    stat_feat_fcns = [np.std, np.ptp, np.mean, np.median, np.max]
+    stat_feat_fcns = [np.std, np.ptp, np.mean, np.max, np.min]
     for col_name in ["acc_x", "acc_y", "acc_z", "acc_xg", "acc_yg", "acc_zg", "mod", "modg"]:
         for fcn in stat_feat_fcns:
             feat_names.append("stat_{}_{}".format(col_name, fcn.__name__))
             feat_vals.append(fcn(seq[col_name]))
 
     # Step 2: Quantile features
-    feat_name = "acc_x"
-    quantile = np.linspace(0.01, 0.98, 7)
-    feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
-    feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
-                                            feat_name=feat_name))
+    # feat_name = "acc_x"
+    # quantile = np.linspace(0.05, 0.95, 14)
+    # feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
+    # feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
+    #                                         feat_name=feat_name))
 
-    feat_name = "acc_y"
-    quantile = np.linspace(0.01, 0.98, 7)
-    feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
-    feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
-                                            feat_name=feat_name))
+    # feat_name = "acc_y"
+    # quantile = np.linspace(0.05, 0.95, 14)
+    # feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
+    # feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
+    #                                         feat_name=feat_name))
 
-    feat_name = "acc_z"
-    quantile = np.linspace(0.01, 0.99, 7)
-    feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
-    feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
-                                            feat_name=feat_name))
+    # feat_name = "acc_z"
+    # quantile = np.linspace(0.05, 0.95, 3)
+    # feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
+    # feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
+    #                                         feat_name=feat_name))
 
     feat_name = "acc_xg"
-    quantile = np.linspace(0.01, 0.99, 7)
+    quantile = np.linspace(0.05, 0.95, 7)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                             feat_name=feat_name))
 
     feat_name = "acc_yg"
-    quantile = np.linspace(0.01, 0.99, 7)
+    quantile = np.linspace(0.05, 0.95, 7)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                             feat_name=feat_name))
 
     feat_name = "acc_zg"
-    quantile = np.linspace(0.01, 0.99, 7)
+    quantile = np.linspace(0.05, 0.95, 7)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                             feat_name=feat_name))
 
     feat_name = "mod"
-    quantile = np.linspace(0.01, 0.99, 11)
+    quantile = np.linspace(0.05, 0.95, 8)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                             feat_name=feat_name))
 
     feat_name = "modg"
-    quantile = np.linspace(0.01, 0.99, 7)
+    quantile = np.linspace(0.05, 0.95, 8)
     feat_names.extend(["seq_{}_quantile_{}".format(feat_name, i) for i in quantile])
     feat_vals.extend(seq_quantile_features(seq, quantile=quantile,
                                             feat_name=feat_name))
 
     # Step 3: Special count features
-    pos_upper_bound_list = [0.01, 0.5, 1.5, 3, 5] #+ np.linspace(0.05, 1, 3).tolist()
-    pos_lower_bound_list = [-0.01, -0.5, -1.5, -3, 5] #+ (-np.linspace(0.05, 1, 3)).tolist()
+    # pos_upper_bound_list = [0.01, 0.5, 1.5, 3, 5, 7] #+ np.linspace(0.05, 1, 3).tolist()
+    # pos_lower_bound_list = [-0.01, -0.5, -1.5, -3, -5, -7] #+ (-np.linspace(0.05, 1, 3)).tolist()
+
+    pos_upper_bound_list = np.linspace(0.05, 10, 25).tolist() #+ np.linspace(0.05, 1, 3).tolist()
+    pos_lower_bound_list = (-np.linspace(0.05, 10, 25)).tolist() #+ (-np.linspace(0.05, 1, 3)).tolist()
+
     for low, high in zip(pos_lower_bound_list, pos_upper_bound_list):
-        feat_names.append("between_acc_x_{}_{}".format(low, high))
-        feat_vals.append(seq["acc_x"].between(low, high).sum() / len(seq))
+        # feat_names.append("between_acc_x_{}_{}".format(low, high))
+        # feat_vals.append(seq["acc_x"].between(low, high).sum() / len(seq))
     
-        feat_names.append("between_acc_y_{}_{}".format(low, high))
-        feat_vals.append(seq["acc_y"].between(low, high).sum() / len(seq))
+        # feat_names.append("between_acc_y_{}_{}".format(low, high))
+        # feat_vals.append(seq["acc_y"].between(low, high).sum() / len(seq))
     
-        feat_names.append("between_acc_z_{}_{}".format(low, high))
-        feat_vals.append(seq["acc_z"].between(low, high).sum() / len(seq))
+        # feat_names.append("between_acc_z_{}_{}".format(low, high))
+        # feat_vals.append(seq["acc_z"].between(low, high).sum() / len(seq))
 
+        feat_names.append("between_acc_mod_{}_{}".format(low, high))
+        feat_vals.append(seq["mod"].between(low, high).sum() / len(seq))
 
-    acc_upper_bound_list = [0.01, 1.5, 3, 5, 7] #+ np.linspace(0.05, 7.5, 3).tolist()
-    acc_lower_bound_list = [-0.01, -1.5, -3, -5, -7] #+ (-np.linspace(0.05, 6, 3)).tolist()
+    # acc_upper_bound_list = [0.01, 1.5, 3, 5, 7] #+ np.linspace(0.05, 7.5, 3).tolist()
+    # acc_lower_bound_list = [-0.01, -1.5, -3, -5, -7] #+ (-np.linspace(0.05, 6, 3)).tolist()
+
+    acc_upper_bound_list = np.linspace(0.05, 13, 20).tolist() #+ np.linspace(0.05, 7.5, 3).tolist()
+    acc_lower_bound_list = (-np.linspace(0.05, 13, 20)).tolist() #+ (-np.linspace(0.05, 6, 3)).tolist()
+
     for low, high in zip(acc_lower_bound_list, acc_upper_bound_list):
-        feat_names.append("between_acc_xg_{}_{}".format(low, high))
-        feat_vals.append(seq["acc_xg"].between(low, high).sum() / len(seq))
+        # feat_names.append("between_acc_xg_{}_{}".format(low, high))
+        # feat_vals.append(seq["acc_xg"].between(low, high).sum() / len(seq))
     
-        feat_names.append("between_acc_yg_{}_{}".format(low, high))
-        feat_vals.append(seq["acc_yg"].between(low, high).sum() / len(seq))
+        # feat_names.append("between_acc_yg_{}_{}".format(low, high))
+        # feat_vals.append(seq["acc_yg"].between(low, high).sum() / len(seq))
     
-        feat_names.append("between_acc_zg_{}_{}".format(low, high))
-        feat_vals.append(seq["acc_zg"].between(low, high).sum() / len(seq))
+        # feat_names.append("between_acc_zg_{}_{}".format(low, high))
+        # feat_vals.append(seq["acc_zg"].between(low, high).sum() / len(seq))
+
+        feat_names.append("between_acc_modg_{}_{}".format(low, high))
+        feat_vals.append(seq["modg"].between(low, high).sum() / len(seq))
 
     # Concat all features
     df = pd.DataFrame(np.array(feat_vals).reshape((1, -1)),
@@ -302,7 +315,12 @@ if __name__ == "__main__":
                         total=len(total_data)))
     stat_feats = pd.concat(tmp, axis=0, ignore_index=True)
     stat_feats["fragment_id"] = fragment_id
+
+    file_processor = LoadSave()
+    embedding_feats = file_processor.load_data(path=".//data_tmp//embedding_df.pkl")
+
     total_feats = pd.merge(total_feats, stat_feats, on="fragment_id", how="left")
+    total_feats = pd.merge(total_feats, embedding_feats, on="fragment_id", how="left")
 
     train_feats = total_feats[total_feats["behavior_id"].notnull()].drop(
         ["behavior_id", "fragment_id", "is_train"], axis=1).values
@@ -320,6 +338,7 @@ if __name__ == "__main__":
     N_EPOCHS = 700
     IS_STRATIFIED = False
     SEED = 2912
+    PLOT_TRAINING = True
 
     if IS_STRATIFIED:
         folds = StratifiedKFold(n_splits=N_FOLDS,
@@ -360,13 +379,23 @@ if __name__ == "__main__":
                             series_length=train_seq.shape[1],
                             series_feat_size=train_seq.shape[2])
 
-        model.fit(x=[d_train, d_train_dense],
-                  y=t_train,
-                  validation_data=([d_valid, d_valid_dense], t_valid),
-                  callbacks=[early_stop],
-                  batch_size=BATCH_SIZE,
-                  epochs=N_EPOCHS,
-                  verbose=2)
+        history = model.fit(x=[d_train, d_train_dense],
+                            y=t_train,
+                            validation_data=([d_valid, d_valid_dense], t_valid),
+                            callbacks=[early_stop],
+                            batch_size=BATCH_SIZE,
+                            epochs=N_EPOCHS,
+                            verbose=2)
+        # Model trianing plots
+        if PLOT_TRAINING:
+            plot_metric(history, metric_type="acc")
+            plt.savefig(".//plots//pre_labeling_fold_acc_{}.png".format(fold),
+                        bbox_inches="tight", dpi=500)
+
+            plot_metric(history, metric_type="loss")
+            plt.savefig(".//plots//pre_labeling_fold_loss_{}.png".format(fold),
+                        bbox_inches="tight", dpi=500)
+            plt.close("all")
 
         train_pred_proba = model.predict(x=[d_train, d_train_dense],
                                          batch_size=BATCH_SIZE)

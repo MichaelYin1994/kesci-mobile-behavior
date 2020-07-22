@@ -36,7 +36,7 @@ from sklearn.metrics import f1_score, accuracy_score
 from sklearn.model_selection import StratifiedKFold, KFold
 from scipy.signal import resample
 
-from utils import LoadSave, acc_combo, clf_pred_to_submission
+from utils import LoadSave, acc_combo, clf_pred_to_submission, plot_metric
 from dingtalk_remote_monitor import RemoteMonitorDingTalk, send_msg_to_dingtalk
 
 # np.random.seed(2022)
@@ -177,43 +177,62 @@ def build_model(verbose=False, is_compile=True, **kwargs):
 
     # Conv_2d cross channel
     # -----------------
-    layer_conv_2d = tf.expand_dims(layer_input_series, -1)
-    layer_conv_2d = Conv2D(filters=64,
-                           kernel_size=(11, 3),
-                           activation='relu',
-                           padding='same')(layer_conv_2d)
-    layer_conv_2d = Conv2D(filters=64,
-                           kernel_size=(5, 3),
-                           activation='relu',
-                           padding='same')(layer_conv_2d)
+    layer_reshape = tf.expand_dims(layer_input_series, -1)
+    layer_conv_2d_x = Conv2D(filters=64,
+                             kernel_size=(5, 3),
+                             activation='relu',
+                             padding='same')(layer_reshape)
+    layer_conv_2d_y = Conv2D(filters=64,
+                             kernel_size=(9, 3),
+                             activation='relu',
+                             padding='same')(layer_reshape)
+    layer_conv_2d_z = Conv2D(filters=64,
+                             kernel_size=(15, 3),
+                             activation='relu',
+                             padding='same')(layer_reshape)
 
-    layer_conv_2d_max_pool = MaxPooling2D(pool_size=(3, 3))(layer_conv_2d)
-    layer_conv_2d_avg_pool = AveragePooling2D(pool_size=(3, 3))(layer_conv_2d)
+    layer_conv_2d_x = Conv2D(filters=64,
+                             kernel_size=(5, 3),
+                             activation='relu',
+                             padding='same')(layer_conv_2d_x)
+    layer_conv_2d_y = Conv2D(filters=64,
+                             kernel_size=(5, 3),
+                             activation='relu',
+                             padding='same')(layer_conv_2d_y)
+    layer_conv_2d_z = Conv2D(filters=64,
+                             kernel_size=(5, 3),
+                             activation='relu',
+                             padding='same')(layer_conv_2d_z)
 
-    layer_conv_2d_max_pool = Dropout(0.16)(layer_conv_2d_max_pool)
-    layer_conv_2d_avg_pool = Dropout(0.13)(layer_conv_2d_avg_pool)
+    layer_local_pooling_2d = []
+    for layer in [layer_conv_2d_x, layer_conv_2d_y, layer_conv_2d_z]:
+        layer_avg = AveragePooling2D(pool_size=(2, 2), padding="same")(layer)
+        layer_avg = Dropout(0.25)(layer_avg)
 
-    layer_conv_2d_max_pool = Conv2D(filters=128,
-                                    kernel_size=(3, 3),
-                                    activation='relu',
-                                    padding='same')(layer_conv_2d_max_pool)
-    layer_conv_2d_avg_pool = Conv2D(filters=128,
-                                    kernel_size=(3, 3),
-                                    activation='relu',
-                                    padding='same')(layer_conv_2d_avg_pool)
+        # layer_max = MaxPooling2D(pool_size=(2, 2), padding="same")(layer)
+        # layer_max = Dropout(0.2)(layer_max)
 
-    layer_conv_2d_max_pool = Dropout(0.2)(layer_conv_2d_max_pool)
-    layer_conv_2d_avg_pool = Dropout(0.17)(layer_conv_2d_avg_pool)
+        layer_local_pooling_2d.append(layer_avg)
+        # layer_local_pooling_2d.append(layer_max)
+
+    layer_conv_2d = []
+    for layer in layer_local_pooling_2d:
+        layer = Conv2D(filters=128,
+                       kernel_size=(3, 3),
+                       activation='relu',
+                       padding='same')(layer)
+        layer = Dropout(0.22)(layer)
+        layer_conv_2d.append(layer)
 
     # Concatenating the pooling layer
-    layer_conv_2d_pooling = []
-    for layer in [layer_conv_2d_max_pool, layer_conv_2d_avg_pool]:
-        layer_conv_2d_pooling.append(GlobalMaxPooling2D()(layer))
-        layer_conv_2d_pooling.append(GlobalAveragePooling2D()(layer))
+    layer_global_pooling_2d = []
+    for layer in layer_conv_2d:
+        # layer_global_pooling_2d.append(GlobalMaxPooling2D()(layer))
+        layer_global_pooling_2d.append(GlobalAveragePooling2D()(layer))
 
     # Concat all
     # -----------------
-    layer_pooling = concatenate(layer_conv_2d_pooling + [layer_input_feats])
+    layer_pooling = concatenate(layer_global_pooling_2d + [layer_input_feats])
 
     # Output structure
     # -----------------
@@ -226,7 +245,7 @@ def build_model(verbose=False, is_compile=True, **kwargs):
         model.summary()
     if is_compile:
         model.compile(loss="categorical_crossentropy",
-                      optimizer=Adam(0.004, decay=1e-6), metrics=['acc'])
+                      optimizer=Adam(0.003, decay=1e-6), metrics=['acc'])
     return model
 
 
@@ -271,13 +290,13 @@ if __name__ == "__main__":
     test_feats = dense_feats[dense_feats["behavior_id"].isnull()].drop(
         ["behavior_id", "fragment_id"], axis=1).values
 
-    train_cv = pd.read_csv(".//submission_oof//32_lgb_10_vf1_8693_vacc_8653_vc_8846_valid.csv")
-    test_cv = pd.read_csv(".//submission_oof//32_lgb_10_vf1_8693_vacc_8653_vc_8846_pred.csv")
-    train_cv = train_cv.drop(["behavior_id", "fragment_id"], axis=1).values
-    test_cv = test_cv.drop(["fragment_id"], axis=1).values
-
-    train_feats = np.hstack([train_feats, train_cv])
-    test_feats = np.hstack([test_feats, test_cv])
+    # train_cv = pd.read_csv(".//submission_oof//75_lgb_pre_label_5_vf1_8663_vacc_8605_vc_8805_valid.csv")
+    # test_cv = pd.read_csv(".//submission_oof//75_lgb_pre_label_5_vf1_8663_vacc_8605_vc_8805_pred.csv")
+    # train_cv = train_cv.drop(["behavior_id", "fragment_id"], axis=1).values
+    # test_cv = test_cv.drop(["fragment_id"], axis=1).values
+    #
+    # train_feats = np.hstack([train_feats, train_cv])
+    # test_feats = np.hstack([test_feats, test_cv])
 
     X_sc = StandardScaler()
     train_feats = X_sc.fit_transform(train_feats)
@@ -290,6 +309,7 @@ if __name__ == "__main__":
     N_EPOCHS = 700
     IS_STRATIFIED = False
     SEED = 2090
+    PLOT_TRAINING = True
 
     if IS_STRATIFIED:
         folds = StratifiedKFold(n_splits=N_FOLDS,
@@ -303,10 +323,10 @@ if __name__ == "__main__":
     scores = np.zeros((N_FOLDS, 7))
     oof_pred = np.zeros((len(train_seq), 19))
     y_pred = np.zeros((len(test_seq), 19))
-    early_stop = EarlyStopping(monitor='val_acc',
+    early_stop = EarlyStopping(monitor='val_loss',
                                mode='max',
                                verbose=1,
-                               patience=80,
+                               patience=70,
                                restore_best_weights=True)
 
     # Training the NN classifier
@@ -330,14 +350,26 @@ if __name__ == "__main__":
                             series_length=train_seq.shape[1],
                             series_feat_size=train_seq.shape[2])
 
-        model.fit(x=[d_train, d_train_dense],
-                  y=t_train,
-                  validation_data=([d_valid, d_valid_dense], t_valid),
-                  callbacks=[early_stop],
-                  batch_size=BATCH_SIZE,
-                  epochs=N_EPOCHS,
-                  verbose=2)
+        history = model.fit(x=[d_train, d_train_dense],
+                            y=t_train,
+                            validation_data=([d_valid, d_valid_dense], t_valid),
+                            callbacks=[early_stop],
+                            batch_size=BATCH_SIZE,
+                            epochs=N_EPOCHS,
+                            verbose=2)
 
+        # Model trianing plots
+        if PLOT_TRAINING:
+            plot_metric(history, metric_type="acc")
+            plt.savefig(".//plots//training_fold_acc_{}.png".format(fold),
+                        bbox_inches="tight", dpi=500)
+
+            plot_metric(history, metric_type="loss")
+            plt.savefig(".//plots//training_fold_loss_{}.png".format(fold),
+                        bbox_inches="tight", dpi=500)
+            plt.close("all")
+
+        # Training evaluation
         train_pred_proba = model.predict(x=[d_train, d_train_dense],
                                          batch_size=BATCH_SIZE)
         valid_pred_proba = model.predict(x=[d_valid, d_valid_dense],

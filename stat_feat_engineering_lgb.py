@@ -147,13 +147,6 @@ if __name__ == "__main__":
     labels = [seq["behavior_id"].unique()[0] for seq in train_data]
     seq = total_data[14]
 
-    # mapping = {0: 0, 1: 0, 2: 0, 3: 0, 
-    #     4: 3, 5: 0, 6: 1,7: 1, 
-    #     8: 1, 9: 1, 10: 1, 11: 0, 
-    #     12: 2, 13: 2, 14: 2, 15: 2, 
-    #     16: 2, 17: 2, 18: 2}
-    # labels = [mapping[i] for i in labels]
-
     total_feats = pd.DataFrame(None)
     total_feats["fragment_id"] = fragment_id
     total_feats["behavior_id"] = labels + [np.nan] * len(test_data)

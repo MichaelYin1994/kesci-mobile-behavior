@@ -19,6 +19,7 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.model_selection import StratifiedKFold, KFold
 import numpy as np
 from scipy import sparse
+from scipy.signal import savgol_filter
 from numpy import iinfo, finfo, int8, int16, int32, int64, float32, float64
 import lightgbm as lgb
 import xgboost as xgb
@@ -37,6 +38,44 @@ def timefn(fcn):
             + " seconds.")
         return result
     return measure_time
+
+
+def plot_metric(history=None, metric_type="acc", **kwargs):
+    """Plot the training curve of Tensorflow NN"""
+    train_metric = history.history[metric_type]
+    valid_metric = history.history["val_"+metric_type]
+    epochs = list(range(1, len(train_metric)+1))
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(epochs, train_metric, color="green", marker="o", linestyle=" ",
+            markersize=3, label="train_{}".format(metric_type))
+    ax.plot(epochs, valid_metric, color="k", marker="s", linestyle=" ",
+            markersize=3, label="valid_{}".format(metric_type))
+
+    is_plot_smoothed_curve = kwargs.pop("is_plot_smoothed_curve", True)
+    sg_window_length = kwargs.pop("sg_window_length", 7)
+    sg_polyorder = kwargs.pop("sg_polyorder", 3)
+    if is_plot_smoothed_curve:
+        train_metric_smoothed = savgol_filter(train_metric,
+                                              window_length=sg_window_length,
+                                              polyorder=sg_polyorder)
+        valid_metric_smoothed = savgol_filter(valid_metric,
+                                              window_length=sg_window_length,
+                                              polyorder=sg_polyorder)
+
+        ax.plot(epochs, train_metric_smoothed, color="blue", linestyle="-",
+                linewidth=1.5, label="train_smoothed_{}".format(metric_type))
+        ax.plot(epochs, valid_metric_smoothed, color="r", linestyle="-",
+                linewidth=1.5, label="valid_smoothed_{}".format(metric_type))
+
+    ax.tick_params(axis="both", labelsize=10)
+    ax.set_xlim(1, len(epochs)+1)
+    ax.set_xlabel("Epochs", fontsize=10)
+    ax.set_ylabel(metric_type, fontsize=10)
+    ax.set_title("#Epochs: {}".format(len(epochs)), fontsize=10)
+    ax.legend(fontsize=10)
+    ax.grid(True)
+    plt.tight_layout()
 
 
 @timefn
