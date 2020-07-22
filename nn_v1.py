@@ -356,26 +356,40 @@ def build_model_textcnn(verbose=False, is_compile=True, **kwargs):
     # CONV-1D cross channel
     # -----------------
     layer_conv_1d_x = Conv1D(filters=128,
-                             kernel_size=(5, 3),
+                             kernel_size=5,
                              activation='relu',
                              padding='same')(layer_input_series)
     layer_conv_1d_y = Conv1D(filters=128,
-                             kernel_size=(7, 3),
+                             kernel_size=7,
                              activation='relu',
                              padding='same')(layer_input_series)
     layer_conv_1d_z = Conv1D(filters=128,
-                             kernel_size=(11, 3),
+                             kernel_size=11,
                              activation='relu',
                              padding='same')(layer_input_series)
 
-    layer_conv_1d_x = MaxPooling1D(pool_size=5)(layer_conv_1d_x)
-    layer_conv_1d_y = MaxPooling1D(pool_size=5)(layer_conv_1d_y)
-    layer_conv_1d_z = MaxPooling1D(pool_size=5)(layer_conv_1d_z)
+    layer_conv_1d_x = Dropout(0.2)(layer_conv_1d_x)
+    layer_conv_1d_y = Dropout(0.2)(layer_conv_1d_y)
+    layer_conv_1d_z = Dropout(0.2)(layer_conv_1d_z)
+
+    layer_conv_1d_avg_pool_x = AveragePooling1D(pool_size=30)(layer_conv_1d_x)
+    layer_conv_1d_avg_pool_y = AveragePooling1D(pool_size=30)(layer_conv_1d_y)
+    layer_conv_1d_avg_pool_z = AveragePooling1D(pool_size=30)(layer_conv_1d_z)
+
+    layer_conv_1d_max_pool_x = MaxPooling1D(pool_size=30)(layer_conv_1d_x)
+    layer_conv_1d_max_pool_y = MaxPooling1D(pool_size=30)(layer_conv_1d_y)
+    layer_conv_1d_max_pool_z = MaxPooling1D(pool_size=30)(layer_conv_1d_z)
 
     # Concat all
     # -----------------
-    layer_concat = concatenate([layer_conv_1d_x, layer_conv_1d_y, layer_conv_1d_z], axis=-1)
+    layer_concat = concatenate([layer_conv_1d_avg_pool_x,
+                                layer_conv_1d_avg_pool_y,
+                                layer_conv_1d_avg_pool_z,
+                                layer_conv_1d_max_pool_x,
+                                layer_conv_1d_max_pool_y,
+                                layer_conv_1d_max_pool_z], axis=-1)
     layer_concat = Flatten()(layer_concat)
+    layer_concat = Dropout(0.15)(layer_concat)
     layer_pooling = concatenate([layer_concat] + [layer_input_feats])
 
     # Output structure
@@ -434,8 +448,8 @@ if __name__ == "__main__":
     test_feats = dense_feats[dense_feats["behavior_id"].isnull()].drop(
         ["behavior_id", "fragment_id"], axis=1).values
 
-    # train_cv = pd.read_csv(".//submission_oof//75_lgb_pre_label_5_vf1_8663_vacc_8605_vc_8805_valid.csv")
-    # test_cv = pd.read_csv(".//submission_oof//75_lgb_pre_label_5_vf1_8663_vacc_8605_vc_8805_pred.csv")
+    # train_cv = pd.read_csv(".//submission_oof//126_nn_pred_label_5_vf1_8865_vacc_8911_vc_9067_valid.csv")
+    # test_cv = pd.read_csv(".//submission_oof//126_nn_pred_label_5_vf1_8865_vacc_8911_vc_9067_pred.csv")
     # train_cv = train_cv.drop(["behavior_id", "fragment_id"], axis=1).values
     # test_cv = test_cv.drop(["fragment_id"], axis=1).values
     #
@@ -489,7 +503,7 @@ if __name__ == "__main__":
         gc.collect()
 
         # Training NN classifier
-        model = build_model(verbose=False,
+        model = build_model_ecg(verbose=False,
                             is_complie=True,
                             dense_feat_size=d_train_dense.shape[1],
                             series_length=train_seq.shape[1],
