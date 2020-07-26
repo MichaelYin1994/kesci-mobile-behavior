@@ -78,6 +78,10 @@ def plot_metric(history=None, metric_type="acc", **kwargs):
     plt.tight_layout()
 
 
+def plot_confusion_matrix():
+    pass
+
+
 @timefn
 def basic_feature_report(data_table=None, precent=None):
     """Reporting basic characteristics of the tabular data data_table."""

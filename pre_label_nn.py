@@ -220,38 +220,56 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     series_length = kwargs.pop("series_length", 61)
     series_feat_size = kwargs.pop("series_feat_size", 8)
     layer_input_series = Input(shape=(series_length, series_feat_size), name="input_series")
-    layer_input_feats = Input(shape=(dense_feat_size, ), dtype="float32",
+    layer_input_feats = Input(shape=(dense_feat_size, ),
+                              dtype="float32",
                               name="input_dense")
 
-    # Conv_2d cross channel
+    # CONV_2d cross channel
     # -----------------
-    layer_conv_2d = tf.expand_dims(layer_input_series, -1)
-    layer_conv_2d = Conv2D(filters=32,
-                           kernel_size=(11, 3),
-                           activation='relu',
-                           padding='same')(layer_conv_2d)
-    layer_conv_2d = Conv2D(filters=64,
-                           kernel_size=(5, 3),
-                           activation='relu',
-                           padding='same')(layer_conv_2d)
+    layer_reshape = tf.expand_dims(layer_input_series, -1)
 
-    layer_conv_2d_max_pool = MaxPooling2D(pool_size=(3, 3))(layer_conv_2d)
-    layer_conv_2d_max_pool = Dropout(0.16)(layer_conv_2d_max_pool)
-    layer_conv_2d_max_pool = Conv2D(filters=128,
-                                    kernel_size=(3, 3),
-                                    activation='relu',
-                                    padding='same')(layer_conv_2d_max_pool)
-    layer_conv_2d_max_pool = Dropout(0.2)(layer_conv_2d_max_pool)
+    layer_conv_2d_first = []
+    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (11, 3), (15, 3), (17, 3)]
+    for kernel_size in kernel_size_list:
+        layer = Conv2D(filters=64,
+                       kernel_size=kernel_size,
+                       activation='relu',
+                       padding='same')(layer_reshape)
+        layer = Conv2D(filters=64,
+                       kernel_size=(3, 3),
+                       activation='relu',
+                       padding='same')(layer)
+        layer_conv_2d_first.append(layer)
+
+    layer_local_pooling_2d = []
+    for layer in layer_conv_2d_first:
+        layer_avg_pool = AveragePooling2D(pool_size=(2, 2), padding="same")(layer)
+        layer_avg_pool = Dropout(0.22)(layer_avg_pool)
+
+        layer_max = MaxPooling2D(pool_size=(2, 2), padding="same")(layer)
+        layer_max = Dropout(0.2)(layer_max)
+
+        layer_local_pooling_2d.append(layer_avg_pool)
+        layer_local_pooling_2d.append(layer_max)
+
+    layer_conv_2d_second = []
+    for layer in layer_local_pooling_2d:
+        layer = Conv2D(filters=128,
+                       kernel_size=(3, 3),
+                       activation='relu',
+                       padding='same')(layer)
+        layer = Dropout(0.22)(layer)
+        layer_conv_2d_second.append(layer)
 
     # Concatenating the pooling layer
-    layer_conv_2d_pooling = []
-    for layer in [layer_conv_2d_max_pool]:
-        layer_conv_2d_pooling.append(GlobalMaxPooling2D()(layer))
-        layer_conv_2d_pooling.append(GlobalAveragePooling2D()(layer))
+    layer_global_pooling_2d = []
+    for layer in layer_conv_2d_second:
+        # layer_global_pooling_2d.append(GlobalMaxPooling2D()(layer))
+        layer_global_pooling_2d.append(GlobalAveragePooling2D()(layer))
 
     # Concat all
     # -----------------
-    layer_pooling = concatenate(layer_conv_2d_pooling + [layer_input_feats])
+    layer_pooling = concatenate(layer_global_pooling_2d + [layer_input_feats])
 
     # Output structure
     # -----------------
@@ -334,7 +352,7 @@ if __name__ == "__main__":
     # Preparing and training models
     #########################################################################
     N_FOLDS = 5
-    BATCH_SIZE = 200
+    BATCH_SIZE = 128
     N_EPOCHS = 700
     IS_STRATIFIED = False
     SEED = 2912

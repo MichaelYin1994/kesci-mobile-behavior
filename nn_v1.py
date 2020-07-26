@@ -32,7 +32,7 @@ from tensorflow.keras.utils import to_categorical
 from tensorflow.keras import backend as K
 
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import f1_score, accuracy_score
+from sklearn.metrics import f1_score, accuracy_score, classification_report
 from sklearn.model_selection import StratifiedKFold, KFold
 from scipy.signal import resample
 
@@ -111,50 +111,64 @@ def preprocessing_seq(seq=None, length_interp=65):
     return seq
 
 
+def stretch(x, target_length=65):
+    l = int(target_length * (1 + (np.random.random() - 0.5) / 3))
+
+    y = np.zeros(x.shape)
+    for i in range(x.shape[1]):
+        y_tmp = resample(x[:, i], l)
+        if l < target_length:
+            y[:len(y_tmp), i] = y_tmp
+        else:
+            y[:, i] = y_tmp[:target_length]
+    return y
+
+
+def amplify(x, target_length=65):
+    alpha = (np.random.random() - 0.5)
+    factor = -alpha * x + (1 + alpha)
+    return x * factor
+
+
 def build_model(verbose=False, is_compile=True, **kwargs):
     dense_feat_size = kwargs.pop("dense_feat_size", 128)
     series_length = kwargs.pop("series_length", 61)
     series_feat_size = kwargs.pop("series_feat_size", 8)
     layer_input_series = Input(shape=(series_length, series_feat_size), name="input_series")
-    layer_input_feats = Input(shape=(dense_feat_size, ),
-                              dtype="float32",
-                              name="input_dense")
+    # layer_input_feats = Input(shape=(dense_feat_size, ),
+    #                           dtype="float32",
+    #                           name="input_dense")
 
     # CONV_2d cross channel
     # -----------------
     layer_reshape = tf.expand_dims(layer_input_series, -1)
 
     layer_conv_2d_first = []
-    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (11, 3), (15, 3), (19, 3), (13, 5), (21, 7)]
+    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (11, 3), (15, 3), (19, 3), (21, 3)]
     for kernel_size in kernel_size_list:
         layer = Conv2D(filters=64,
                        kernel_size=kernel_size,
                        activation='relu',
                        padding='same')(layer_reshape)
+        layer = Dropout(0.12)(layer)
         layer = Conv2D(filters=64,
                        kernel_size=(3, 3),
                        activation='relu',
                        padding='same')(layer)
+        layer = Dropout(0.11)(layer)
+        layer = AveragePooling2D(pool_size=(2, 2),
+                                 padding="same")(layer)
         layer_conv_2d_first.append(layer)
 
-    layer_local_pooling_2d = []
-    for layer in layer_conv_2d_first:
-        layer_avg_pool = AveragePooling2D(pool_size=(2, 2), padding="same")(layer)
-        layer_avg_pool = Dropout(0.22)(layer_avg_pool)
-
-        # layer_max = MaxPooling2D(pool_size=(2, 2), padding="same")(layer)
-        # layer_max = Dropout(0.2)(layer_max)
-
-        layer_local_pooling_2d.append(layer_avg_pool)
-        # layer_local_pooling_2d.append(layer_max)
-
     layer_conv_2d_second = []
-    for layer in layer_local_pooling_2d:
+    for layer in layer_conv_2d_first:
         layer = Conv2D(filters=128,
                        kernel_size=(3, 3),
                        activation='relu',
                        padding='same')(layer)
-        layer = Dropout(0.22)(layer)
+        layer = Dropout(0.18)(layer)
+        layer = AveragePooling2D(pool_size=(2, 2),
+                                 padding="same")(layer)
         layer_conv_2d_second.append(layer)
 
     # Concatenating the pooling layer
@@ -165,7 +179,7 @@ def build_model(verbose=False, is_compile=True, **kwargs):
 
     # Concat all
     # -----------------
-    layer_pooling = concatenate(layer_global_pooling_2d + [layer_input_feats])
+    layer_pooling = concatenate(layer_global_pooling_2d)
 
     # Output structure
     # -----------------
@@ -173,7 +187,7 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     layer_output = Dense(128, activation="relu")(layer_output)
     layer_output = Dense(19, activation='softmax')(layer_output)
 
-    model = Model([layer_input_series, layer_input_feats], layer_output)
+    model = Model([layer_input_series], layer_output)
     if verbose:
         model.summary()
     if is_compile:
@@ -196,7 +210,7 @@ if __name__ == "__main__":
     total_feats["behavior_id"] = labels + [np.nan] * len(test_data)
     total_feats["is_train"] = [True] * len(train_data) + [False] * len(test_data)
 
-    SENDING_TRAINING_INFO = True
+    SENDING_TRAINING_INFO = False
     send_msg_to_dingtalk("++++++++++++++++++++++++++++", SENDING_TRAINING_INFO)
     INFO_TEXT = "[BEGIN]#Training: {}, #Testing: {}, at: {}".format(
         len(total_feats.query("is_train == True")),
@@ -223,8 +237,8 @@ if __name__ == "__main__":
     test_feats = dense_feats[dense_feats["behavior_id"].isnull()].drop(
         ["behavior_id", "fragment_id"], axis=1).values
 
-    # train_cv = pd.read_csv(".//submission_oof//126_nn_pred_label_5_vf1_8865_vacc_8911_vc_9067_valid.csv")
-    # test_cv = pd.read_csv(".//submission_oof//126_nn_pred_label_5_vf1_8865_vacc_8911_vc_9067_pred.csv")
+    # train_cv = pd.read_csv(".//submission_oof//140_nn_pred_label_5_vf1_8882_vacc_8945_vc_9096_valid.csv")
+    # test_cv = pd.read_csv(".//submission_oof//140_nn_pred_label_5_vf1_8882_vacc_8945_vc_9096_pred.csv")
     # train_cv = train_cv.drop(["behavior_id", "fragment_id"], axis=1).values
     # test_cv = test_cv.drop(["fragment_id"], axis=1).values
     #
@@ -238,12 +252,12 @@ if __name__ == "__main__":
 
     # Preparing and training models
     #########################################################################
-    N_FOLDS = 10
+    N_FOLDS = 5
     BATCH_SIZE = 1024
     N_EPOCHS = 700
     IS_STRATIFIED = False
     SEED = 2090
-    PLOT_TRAINING = True
+    PLOT_TRAINING = False
 
     if IS_STRATIFIED:
         folds = StratifiedKFold(n_splits=N_FOLDS,
@@ -273,6 +287,22 @@ if __name__ == "__main__":
         d_train_dense, d_valid_dense = train_feats[tra_id], train_feats[val_id]
         t_train, t_valid = targets_oht[tra_id], targets_oht[val_id]
 
+        # Data augment
+        n_samples = d_train_dense.shape[0]
+        aug_stretch_list = []
+        for i in range(n_samples):
+            aug_stretch_list.append(stretch(d_train[i],
+                                            d_train[i].shape[0]))
+        d_train_aug = np.vstack([d_train, np.array(aug_stretch_list)])
+        t_train_aug = np.vstack([t_train, t_train])
+
+        aug_amplify_list = []
+        for i in range(n_samples):
+            aug_amplify_list.append(amplify(d_train[i],
+                                            d_train[i].shape[0]))
+        d_train_aug = np.vstack([d_train_aug, np.array(aug_amplify_list)])
+        t_train_aug = np.vstack([t_train_aug, t_train])
+
         # Destroy all graph nodes in memory
         K.clear_session()
         gc.collect()
@@ -284,9 +314,9 @@ if __name__ == "__main__":
                             series_length=train_seq.shape[1],
                             series_feat_size=train_seq.shape[2])
 
-        history = model.fit(x=[d_train, d_train_dense],
+        history = model.fit(x=[d_train],
                             y=t_train,
-                            validation_data=([d_valid, d_valid_dense], t_valid),
+                            validation_data=([d_valid], t_valid),
                             callbacks=[early_stop],
                             batch_size=BATCH_SIZE,
                             epochs=N_EPOCHS,
@@ -304,11 +334,11 @@ if __name__ == "__main__":
             plt.close("all")
 
         # Training evaluation
-        train_pred_proba = model.predict(x=[d_train, d_train_dense],
+        train_pred_proba = model.predict(x=[d_train],
                                          batch_size=BATCH_SIZE)
-        valid_pred_proba = model.predict(x=[d_valid, d_valid_dense],
+        valid_pred_proba = model.predict(x=[d_valid],
                                          batch_size=BATCH_SIZE)
-        y_pred_proba = model.predict(x=[test_seq, test_feats],
+        y_pred_proba = model.predict(x=[test_seq],
                                      batch_size=BATCH_SIZE)
         y_pred += y_pred_proba / N_FOLDS
 
@@ -341,6 +371,8 @@ if __name__ == "__main__":
         INFO_TEXT = "[INFO] folds {}({}), valid f1: {:.5f}, acc: {:.5f}, custom: {:.5f}".format(
             fold+1, N_FOLDS, valid_f1, valid_acc, valid_custom)
         send_msg_to_dingtalk(INFO_TEXT, is_send_msg=SENDING_TRAINING_INFO)
+        send_msg_to_dingtalk(classification_report(t_valid_label, valid_pred_label),
+                             is_send_msg=SENDING_TRAINING_INFO)
 
     oof_pred_label = np.argmax(oof_pred, axis=1).reshape((-1, 1))
     total_f1 = f1_score(np.array(labels).reshape(-1, 1),
@@ -351,6 +383,8 @@ if __name__ == "__main__":
             acc_combo, 1, np.hstack((np.array(labels).reshape((-1, 1)),
                                      oof_pred_label.reshape((-1, 1))))).mean()
 
+    send_msg_to_dingtalk(classification_report(np.array(labels).reshape(-1, 1), oof_pred_label),
+                         is_send_msg=SENDING_TRAINING_INFO)
     INFO_TEXT = "[INFO] total valid f1: {:.5f}, acc: {:.5f}, custom: {:.5f}".format(
         total_f1, total_acc, total_custom)
     send_msg_to_dingtalk(INFO_TEXT, is_send_msg=SENDING_TRAINING_INFO)
