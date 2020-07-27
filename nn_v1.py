@@ -135,40 +135,60 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     series_length = kwargs.pop("series_length", 61)
     series_feat_size = kwargs.pop("series_feat_size", 8)
     layer_input_series = Input(shape=(series_length, series_feat_size), name="input_series")
-    # layer_input_feats = Input(shape=(dense_feat_size, ),
-    #                           dtype="float32",
-    #                           name="input_dense")
+    layer_input_feats = Input(shape=(dense_feat_size, ),
+                              dtype="float32",
+                              name="input_dense")
 
     # CONV_2d cross channel
     # -----------------
     layer_reshape = tf.expand_dims(layer_input_series, -1)
 
     layer_conv_2d_first = []
-    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (11, 3), (15, 3), (19, 3), (21, 3)]
+    kernel_size_list = [(3, 1), (5, 1), (7, 1),
+                        (3, 3), (5, 3), (7, 3), (9, 3), (11, 3), (13, 3), (17, 3),
+                        (5, 5), (11, 5), (17, 5)]
     for kernel_size in kernel_size_list:
         layer = Conv2D(filters=64,
                        kernel_size=kernel_size,
                        activation='relu',
                        padding='same')(layer_reshape)
-        layer = Dropout(0.12)(layer)
         layer = Conv2D(filters=64,
                        kernel_size=(3, 3),
                        activation='relu',
                        padding='same')(layer)
-        layer = Dropout(0.11)(layer)
-        layer = AveragePooling2D(pool_size=(2, 2),
-                                 padding="same")(layer)
         layer_conv_2d_first.append(layer)
 
-    layer_conv_2d_second = []
+    dilation_size_list = [(1, 2), (1, 3), (1, 4), (1, 5)]
+    for dilation_size in dilation_size_list:
+        layer = Conv2D(filters=64,
+                       kernel_size=(5, 3),
+                       dilation_rate=dilation_size,
+                       activation='relu',
+                       padding='same')(layer_reshape)
+        layer = Conv2D(filters=64,
+                       kernel_size=(3, 3),
+                       activation='relu',
+                       padding='same')(layer)
+        layer_conv_2d_first.append(layer)
+
+    layer_local_pooling_2d = []
     for layer in layer_conv_2d_first:
+        layer_avg_pool = AveragePooling2D(pool_size=(2, 2), padding="same")(layer)
+        layer_avg_pool = Dropout(0.22)(layer_avg_pool)
+
+        layer_max = MaxPooling2D(pool_size=(2, 2), padding="same")(layer)
+        layer_max = Dropout(0.2)(layer_max)
+
+        layer_local_pooling_2d.append(layer_avg_pool)
+        layer_local_pooling_2d.append(layer_max)
+
+    layer_conv_2d_second = []
+    for layer in layer_local_pooling_2d:
         layer = Conv2D(filters=128,
                        kernel_size=(3, 3),
                        activation='relu',
                        padding='same')(layer)
-        layer = Dropout(0.18)(layer)
-        layer = AveragePooling2D(pool_size=(2, 2),
-                                 padding="same")(layer)
+        layer = Dropout(0.22)(layer)
         layer_conv_2d_second.append(layer)
 
     # Concatenating the pooling layer
@@ -179,7 +199,7 @@ def build_model(verbose=False, is_compile=True, **kwargs):
 
     # Concat all
     # -----------------
-    layer_pooling = concatenate(layer_global_pooling_2d)
+    layer_pooling = concatenate(layer_global_pooling_2d + [layer_input_feats])
 
     # Output structure
     # -----------------
@@ -187,7 +207,7 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     layer_output = Dense(128, activation="relu")(layer_output)
     layer_output = Dense(19, activation='softmax')(layer_output)
 
-    model = Model([layer_input_series], layer_output)
+    model = Model([layer_input_series, layer_input_feats], layer_output)
     if verbose:
         model.summary()
     if is_compile:
@@ -253,7 +273,7 @@ if __name__ == "__main__":
     # Preparing and training models
     #########################################################################
     N_FOLDS = 5
-    BATCH_SIZE = 1024
+    BATCH_SIZE = 512
     N_EPOCHS = 700
     IS_STRATIFIED = False
     SEED = 2090
@@ -287,22 +307,6 @@ if __name__ == "__main__":
         d_train_dense, d_valid_dense = train_feats[tra_id], train_feats[val_id]
         t_train, t_valid = targets_oht[tra_id], targets_oht[val_id]
 
-        # Data augment
-        n_samples = d_train_dense.shape[0]
-        aug_stretch_list = []
-        for i in range(n_samples):
-            aug_stretch_list.append(stretch(d_train[i],
-                                            d_train[i].shape[0]))
-        d_train_aug = np.vstack([d_train, np.array(aug_stretch_list)])
-        t_train_aug = np.vstack([t_train, t_train])
-
-        aug_amplify_list = []
-        for i in range(n_samples):
-            aug_amplify_list.append(amplify(d_train[i],
-                                            d_train[i].shape[0]))
-        d_train_aug = np.vstack([d_train_aug, np.array(aug_amplify_list)])
-        t_train_aug = np.vstack([t_train_aug, t_train])
-
         # Destroy all graph nodes in memory
         K.clear_session()
         gc.collect()
@@ -314,9 +318,9 @@ if __name__ == "__main__":
                             series_length=train_seq.shape[1],
                             series_feat_size=train_seq.shape[2])
 
-        history = model.fit(x=[d_train],
+        history = model.fit(x=[d_train, d_train_dense],
                             y=t_train,
-                            validation_data=([d_valid], t_valid),
+                            validation_data=([d_valid, d_valid_dense], t_valid),
                             callbacks=[early_stop],
                             batch_size=BATCH_SIZE,
                             epochs=N_EPOCHS,
@@ -334,11 +338,11 @@ if __name__ == "__main__":
             plt.close("all")
 
         # Training evaluation
-        train_pred_proba = model.predict(x=[d_train],
+        train_pred_proba = model.predict(x=[d_train, d_train_dense],
                                          batch_size=BATCH_SIZE)
-        valid_pred_proba = model.predict(x=[d_valid],
+        valid_pred_proba = model.predict(x=[d_valid, d_valid_dense],
                                          batch_size=BATCH_SIZE)
-        y_pred_proba = model.predict(x=[test_seq],
+        y_pred_proba = model.predict(x=[test_seq, test_feats],
                                      batch_size=BATCH_SIZE)
         y_pred += y_pred_proba / N_FOLDS
 
