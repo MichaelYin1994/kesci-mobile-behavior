@@ -101,13 +101,14 @@ def interp_seq(seq=None, length_interp=61):
     return interp_df
 
 
-def preprocessing_seq(seq=None, length_interp=62):
+def preprocessing_seq(seq=None, length_interp=40):
     """Interpolating a seq on selected feattures to the fixed length_interp"""
     seq["mod"] = np.sqrt(seq["acc_x"]**2 + seq["acc_y"]**2 + seq["acc_z"]**2)
     seq["modg"] = np.sqrt(seq["acc_xg"]**2 + seq["acc_yg"]**2 + seq["acc_zg"]**2)
 
     selected_feats = ["acc_x", "acc_y", "acc_z", "acc_xg", "acc_yg", "acc_zg", "mod", "modg"]
     seq = interp_seq(seq[selected_feats], length_interp=length_interp)
+    seq = seq[:, :30]
     return seq
 
 
@@ -143,52 +144,34 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     # -----------------
     layer_reshape = tf.expand_dims(layer_input_series, -1)
 
+    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (11, 3), (5, 5)]
     layer_conv_2d_first = []
-    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (11, 3), (13, 3), (17, 3),
-                        (5, 5), (11, 5), (17, 5)]
     for kernel_size in kernel_size_list:
-        layer = Conv2D(filters=64,
-                       kernel_size=kernel_size,
-                       activation='relu',
-                       padding='same')(layer_reshape)
-        layer = Conv2D(filters=64,
-                       kernel_size=(3, 3),
-                       strides=2,
-                       activation='relu',
-                       padding='same')(layer)
-        layer_conv_2d_first.append(layer)
-
-    dilation_size_list = [(1, 3), (2, 3)]
-    for dilation_size in dilation_size_list:
-        layer = Conv2D(filters=64,
-                       kernel_size=(5, 3),
-                       dilation_rate=dilation_size,
-                       activation='relu',
-                       padding='same')(layer_reshape)
-        layer = Conv2D(filters=64,
-                       kernel_size=(3, 3),
-                       strides=2,
-                       activation='relu',
-                       padding='same')(layer)
-        layer_conv_2d_first.append(layer)
+        layer_feat_map = Conv2D(filters=64,
+                                kernel_size=kernel_size,
+                                activation='relu',
+                                padding='same')(layer_reshape)
+        layer_residual = ReLU()(layer_feat_map)
+        layer_residual = Conv2D(filters=64,
+                                kernel_size=(3, 3),
+                                activation='relu',
+                                padding='same')(layer_residual)
+        layer_0 = Add()([layer_feat_map, layer_residual])
+        layer_0 = ReLU()(layer_0)
+        layer_conv_2d_first.append(layer_0)
 
     layer_local_pooling_2d = []
     for layer in layer_conv_2d_first:
-        layer_avg_pool = AveragePooling2D(pool_size=(2, 2), padding="same")(layer)
+        layer_avg_pool = AveragePooling2D(pool_size=(2, 2), padding="valid")(layer)
         layer_avg_pool = Dropout(0.22)(layer_avg_pool)
-
-        layer_max = MaxPooling2D(pool_size=(2, 2), padding="same")(layer)
-        layer_max = Dropout(0.2)(layer_max)
-
         layer_local_pooling_2d.append(layer_avg_pool)
-        layer_local_pooling_2d.append(layer_max)
 
     layer_conv_2d_second = []
     for layer in layer_local_pooling_2d:
         layer = Conv2D(filters=128,
                        kernel_size=(3, 3),
                        activation='relu',
-                       padding='same')(layer)
+                       padding='valid')(layer)
         layer = Dropout(0.22)(layer)
         layer_conv_2d_second.append(layer)
 
@@ -199,12 +182,11 @@ def build_model(verbose=False, is_compile=True, **kwargs):
 
     # Concat all
     # -----------------
-    layer_dense_feats = Dropout(0.2)(layer_input_feats)
-    layer_pooling = concatenate(layer_global_pooling_2d + [layer_dense_feats])
+    layer_pooling = concatenate(layer_global_pooling_2d + [layer_input_feats])
 
     # Output structure
     # -----------------
-    layer_output = Dropout(0.2)(layer_pooling)
+    layer_output = Dropout(0.22)(layer_pooling)
     layer_output = Dense(128, activation="relu")(layer_output)
     layer_output = Dense(19, activation='softmax')(layer_output)
 
@@ -273,7 +255,7 @@ if __name__ == "__main__":
 
     # Preparing and training models
     #########################################################################
-    N_FOLDS = 15
+    N_FOLDS = 5
     BATCH_SIZE = 2048
     N_EPOCHS = 700
     IS_STRATIFIED = False
