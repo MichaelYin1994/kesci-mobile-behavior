@@ -236,56 +236,61 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     # -----------------
     layer_reshape = tf.expand_dims(layer_input_series, -1)
 
+    layer_feature_extraction = []
+    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (11, 3), (5, 5)]
     layer_conv_2d_first = []
-    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (11, 3), (15, 3), (19, 3), (5, 5)]
     for kernel_size in kernel_size_list:
-        layer = Conv2D(filters=64,
-                       kernel_size=kernel_size,
-                       activation='relu',
-                       padding='same')(layer_reshape)
-        layer = Conv2D(filters=64,
-                       kernel_size=(3, 3),
-                       activation='relu',
-                       padding='same')(layer)
-        layer_conv_2d_first.append(layer)
-
-    dilation_size_list = [(1, 3), (2, 3)]
-    for dilation_size in dilation_size_list:
-        layer = Conv2D(filters=64,
-                       kernel_size=(5, 3),
-                       dilation_rate=dilation_size,
-                       activation='relu',
-                       padding='same')(layer_reshape)
-        layer = Conv2D(filters=64,
-                       kernel_size=(3, 3),
-                       activation='relu',
-                       padding='same')(layer)
-        layer_conv_2d_first.append(layer)
+        layer_feat_map = Conv2D(filters=64,
+                                kernel_size=kernel_size,
+                                activation='relu',
+                                padding='same')(layer_reshape)
+        layer_residual = ReLU()(layer_feat_map)
+        layer_residual = Conv2D(filters=64,
+                                kernel_size=(3, 3),
+                                activation='relu',
+                                padding='same')(layer_residual)
+        layer_0 = Add()([layer_feat_map, layer_residual])
+        layer_0 = ReLU()(layer_0)
+        layer_conv_2d_first.append(layer_0)
 
     layer_local_pooling_2d = []
     for layer in layer_conv_2d_first:
-        layer_avg_pool = AveragePooling2D(pool_size=(2, 2), padding="same")(layer)
-        layer_avg_pool = Dropout(0.22)(layer_avg_pool)
-
-        # layer_max = MaxPooling2D(pool_size=(2, 2), padding="same")(layer)
-        # layer_max = Dropout(0.2)(layer_max)
-
+        layer_avg_pool = AveragePooling2D(pool_size=(2, 2),
+                                          padding="same")(layer)
+        layer_avg_pool = ReLU()(layer_avg_pool)
+        layer_avg_pool = Add()([layer_avg_pool, layer])
+        layer_avg_pool = ReLU()(layer_avg_pool)
+        layer_avg_pool = Dropout(0.25)(layer_avg_pool)
         layer_local_pooling_2d.append(layer_avg_pool)
-        # layer_local_pooling_2d.append(layer_max)
 
     layer_conv_2d_second = []
     for layer in layer_local_pooling_2d:
+        layer_shortcut = Conv2D(filters=256,
+                                kernel_size=(1, 1),
+                                activation='relu',
+                                padding='valid')(layer)
+
+        layer = Conv2D(filters=128,
+                       kernel_size=(1, 1),
+                       activation='relu',
+                       padding='valid')(layer)
+        layer = ReLU()(layer)
         layer = Conv2D(filters=128,
                        kernel_size=(3, 3),
                        activation='relu',
-                       padding='same')(layer)
-        layer = Dropout(0.22)(layer)
+                       padding='valid')(layer)
+        layer = ReLU()(layer)
+        layer = Conv2D(filters=256,
+                       kernel_size=(3, 3),
+                       activation='relu',
+                       padding='valid')(layer)
+        layer = ReLU()(layer)
+        layer = Dropout(0.23)(layer)
         layer_conv_2d_second.append(layer)
 
     # Concatenating the pooling layer
     layer_global_pooling_2d = []
     for layer in layer_conv_2d_second:
-        # layer_global_pooling_2d.append(GlobalMaxPooling2D()(layer))
         layer_global_pooling_2d.append(GlobalAveragePooling2D()(layer))
 
     # Concat all
@@ -294,7 +299,7 @@ def build_model(verbose=False, is_compile=True, **kwargs):
 
     # Output structure
     # -----------------
-    layer_output = Dropout(0.2)(layer_pooling)
+    layer_output = Dropout(0.22)(layer_pooling)
     layer_output = Dense(128, activation="relu")(layer_output)
     layer_output = Dense(19, activation='softmax')(layer_output)
 
@@ -403,7 +408,7 @@ if __name__ == "__main__":
         gc.collect()
 
         # Training NN classifier
-        model = build_model_new(verbose=False,
+        model = build_model(verbose=False,
                             is_complie=True,
                             dense_feat_size=d_train_dense.shape[1],
                             series_length=train_seq.shape[1],
