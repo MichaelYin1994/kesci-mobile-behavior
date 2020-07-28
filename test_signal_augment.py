@@ -36,6 +36,32 @@ def interp_seq(seq=None, length_interp=61):
     return interp_df
 
 
+def split_seq(seq=None, strides=10, segment_length=30, padding=None):
+    """Split the time serie seq according to the strides and segment_length."""
+    if len(seq) < (segment_length + strides):
+        raise ValueError("The length of seq is less than the segment_length + strides !")
+    if padding is not None and padding not in ["zero", "backward"]:
+        raise ValueError("Invalid padding method !")
+
+    # Split the time series seq
+    seq_split = []
+    split_pos = [i for i in list(range(0, len(seq), strides)) if i + segment_length <= len(seq)]
+
+    for pos in split_pos:
+        seq_split.append(seq[pos:(pos+segment_length), :])
+
+    # Processing the remain segments
+    if padding is None:
+        pass
+    elif padding == "backward":
+        seq_split.append(seq[(len(seq)-segment_length):, :])
+    else:
+        seq_tmp = seq[(split_pos[-1]+segment_length):, :]
+        n_need_to_pad = segment_length - len(seq_tmp)
+        seq_split.append(np.vstack((seq_tmp, np.zeros((n_need_to_pad, seq.shape[1])))))
+    return seq_split
+
+
 # def plot_list_seq(seq_list=None):
 #     feat_names = ["acc_x", "acc_y", "acc_z", "acc_xg", "acc_yg", "acc_zg"]
 
@@ -68,7 +94,7 @@ def plot_seq_compare(seq, seq_compare):
     ax.legend(fontsize=8, loc='best')
 
 
-def preprocessing_seq(seq=None, length_interp=65):
+def preprocessing_seq(seq=None, length_interp=65, split_segments=5):
     """Interpolating a seq on selected feattures to the fixed length_interp"""
     seq["mod"] = np.sqrt(seq["acc_x"]**2 + seq["acc_y"]**2 + seq["acc_z"]**2)
     seq["modg"] = np.sqrt(seq["acc_xg"]**2 + seq["acc_yg"]**2 + seq["acc_zg"]**2)
@@ -76,46 +102,6 @@ def preprocessing_seq(seq=None, length_interp=65):
     selected_feats = ["acc_x", "acc_y", "acc_z", "acc_xg", "acc_yg", "acc_zg", "mod", "modg"]
     seq = interp_seq(seq[selected_feats], length_interp=length_interp)
     return seq
-
-
-def stretch(x, target_length=65):
-    l = int(target_length * (1 + (np.random.random() - 0.5) / 3))
-
-    y = np.zeros(x.shape)
-    for i in range(x.shape[1]):
-        y_tmp = resample(x[:, i], l)
-        if l < target_length:
-            y[:len(y_tmp), i] = y_tmp
-        else:
-            y[:, i] = y_tmp[:target_length]
-    return y
-
-
-def amplify(x, target_length=65):
-    alpha = (np.random.random() - 0.5)
-    factor = -alpha * x + (1 + alpha)
-    return x * factor
-
-
-def white_noise():
-    pass
-
-
-# def augment(x, target_length=61):
-#     result = np.zeros(shape= (4, 61))
-#     for i in range(3):
-#         if np.random.random() < 0.33:
-#             new_y = stretch(x)
-#         elif np.random.random() < 0.66:
-#             new_y = amplify(x)
-#         else:
-#             new_y = stretch(x)
-#             new_y = amplify(new_y)
-#         result[i, :] = new_y
-#     return result
-
-
-
 
 
 if __name__ == "__main__":
@@ -140,9 +126,16 @@ if __name__ == "__main__":
     #     str(datetime.now())[:-7])
     # send_msg_to_dingtalk(info_text=INFO_TEXT, is_send_msg=SENDING_TRAINING_INFO)
 
-    # ##########################################################################
-    # # Step 1: Interpolate all the sequence to the fixed length
-    # # ------------------------
+    ##########################################################################
+    # Step 1: Interpolate all the sequence to the fixed length
+    # ------------------------
+    
+    seq_tmp = interp_seq(seq, 62)
+    seq_tmp_res = split_seq(seq_tmp,
+                            strides=20,
+                            segment_length=30,
+                            padding=None)
+
     # res = preprocessing_seq(total_data[0].copy())
     # with mp.Pool(processes=mp.cpu_count()) as p:
     #     tmp = list(tqdm(p.imap(preprocessing_seq, total_data),
@@ -150,8 +143,8 @@ if __name__ == "__main__":
     # train_seq, test_seq = tmp[:len(train_data)], tmp[len(train_data):]
     # train_seq, test_seq = np.array(train_seq), np.array(test_seq)
 
-    plt.close("all")
-    ind = 123
-    plot_seq_compare(train_seq[ind][:, 1], stretch(train_seq[ind])[:, 1])
-    plot_seq_compare(train_seq[ind][:, 1], amplify(train_seq[ind])[:, 1])
-    
+    # plt.close("all")
+    # ind = 123
+    # plot_seq_compare(train_seq[ind][:, 1], stretch(train_seq[ind])[:, 1])
+    # plot_seq_compare(train_seq[ind][:, 1], amplify(train_seq[ind])[:, 1])
+
