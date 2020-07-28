@@ -64,25 +64,6 @@ def load_data(name=None):
     return data
 
 
-def plot_interp_seq(seq=None, seq_interp=None):
-    feat_names = ["acc_x", "acc_y", "acc_z", "acc_xg", "acc_yg", "acc_zg"]
-
-    fig, ax_objs = plt.subplots(6, 1, figsize=(14, 10))
-    ax_objs = ax_objs.ravel()
-
-    for ind, name in enumerate(feat_names):
-        ax = ax_objs[ind]
-        ax.plot(seq["time_point"].values, seq[name].values, color="k", marker="o", markersize=5,
-                linewidth=1.8, linestyle="-", label=name)
-        ax.plot(seq_interp["time_point"].values, seq_interp[name].values, color="r", marker="s", markersize=3,
-                linewidth=1.1, linestyle=" ", label=name)
-        # ax.set_xlim(0, len(seq))
-        ax.tick_params(axis="both", labelsize=8)
-        ax.grid(True)
-        ax.legend(fontsize=8, loc='best')
-    plt.tight_layout()
-
-
 def interp_seq(seq=None, length_interp=61):
     """Interpolating a seq to the fixed length_interp."""
     if len(seq) == length_interp:
@@ -124,12 +105,6 @@ def stretch(x, target_length=65):
     return y
 
 
-def amplify(x, target_length=65):
-    alpha = (np.random.random() - 0.5)
-    factor = -alpha * x + (1 + alpha)
-    return x * factor
-
-
 def build_model_new(verbose=False, is_compile=True, **kwargs):
     dense_feat_size = kwargs.pop("dense_feat_size", 128)
     series_length = kwargs.pop("series_length", 61)
@@ -142,8 +117,110 @@ def build_model_new(verbose=False, is_compile=True, **kwargs):
     # CONV_2d dim expand
     # -----------------
     layer_reshape = tf.expand_dims(layer_input_series, -1)
-    
 
+    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (11, 3)]
+    layer_feat_extraction = []
+    for kernel_size in kernel_size_list:
+        layer = Conv2D(filters=64,
+                       kernel_size=kernel_size,
+                       activation='relu',
+                       padding='same')(layer_reshape)
+        layer_feat_extraction.append(layer)
+    layer_feat_extraction = concatenate(layer_feat_extraction)
+
+    # CONV layer n_filters = 64
+    # -----------------
+    n_layers = 1
+    layer_0 = layer_feat_extraction
+    for i in range(n_layers):
+        layer_residual = Conv2D(filters=32,
+                                kernel_size=(1, 1),
+                                activation='relu',
+                                padding='same')(layer_0)
+        layer_residual = ReLU()(layer_residual)
+        layer_residual = Conv2D(filters=32,
+                                kernel_size=(3, 3),
+                                activation='relu',
+                                padding='same')(layer_residual)
+        layer_residual = ReLU()(layer_residual)
+        layer_residual = Conv2D(filters=len(kernel_size_list) * 64,
+                                kernel_size=(1, 1),
+                                activation='relu',
+                                padding='same')(layer_residual)
+        layer_0 = Add()([layer_0, layer_residual])
+        layer_0 = ReLU()(layer_0)
+        layer_0 = Dropout(0.2)(layer_0)
+
+    # CONV layer n_filters = 128
+    # -----------------
+    # Layer preprocessing
+    layer_shortcut = Conv2D(filters=256,
+                            kernel_size=(1, 1),
+                            strides=2,
+                            activation='relu',
+                            padding='same')(layer_0)
+
+    layer_1 = Conv2D(filters=64,
+                     kernel_size=(1, 1),
+                     strides=2,
+                     activation='relu',
+                     padding='same')(layer_0)
+    layer_1 = ReLU()(layer_1)
+    layer_1 = Conv2D(filters=64,
+                     kernel_size=(3, 3),
+                     activation='relu',
+                     padding='same')(layer_1)
+    layer_1 = ReLU()(layer_1)
+    layer_1 = Conv2D(filters=256,
+                     kernel_size=(1, 1),
+                     activation='relu',
+                     padding='same')(layer_1)
+    layer_1 = Add()([layer_shortcut, layer_1])
+    layer_1 = ReLU()(layer_1)
+    layer_1 = Dropout(0.2)(layer_1)
+
+    # Residual layer
+    n_layers = 2
+    for i in range(n_layers):
+        layer_residual = Conv2D(filters=64,
+                                kernel_size=(1, 1),
+                                activation='relu',
+                                padding='same')(layer_1)
+        layer_residual = ReLU()(layer_residual)
+        layer_residual = Conv2D(filters=64,
+                                kernel_size=(3, 3),
+                                activation='relu',
+                                padding='same')(layer_residual)
+        layer_residual = ReLU()(layer_residual)
+        layer_residual = Conv2D(filters=256,
+                                kernel_size=(1, 1),
+                                activation='relu',
+                                padding='same')(layer_residual)
+        layer_1 = Add()([layer_1, layer_residual])
+        layer_1 = ReLU()(layer_1)
+        layer_1 = Dropout(0.2)(layer_1)
+
+    # Pooling layer
+    # -----------------
+    layer_global_pooling_2d = GlobalAveragePooling2D()(layer_1)
+
+    # Concat all
+    # -----------------
+    layer_pooling = concatenate([layer_global_pooling_2d] + [layer_input_feats])
+
+    # Output structure
+    # -----------------
+    layer_output = Dropout(0.2)(layer_pooling)
+    layer_output = Dense(128, activation="relu")(layer_output)
+    layer_output = Dense(19, activation='softmax')(layer_output)
+
+    model = Model([layer_input_series, layer_input_feats], layer_output)
+    if verbose:
+        model.summary()
+    if is_compile:
+        model.compile(loss="categorical_crossentropy",
+                      optimizer=Adam(0.003, decay=1e-6), metrics=['acc'])
+    return model
 
 
 def build_model(verbose=False, is_compile=True, **kwargs):
@@ -326,7 +403,7 @@ if __name__ == "__main__":
         gc.collect()
 
         # Training NN classifier
-        model = build_model(verbose=False,
+        model = build_model_new(verbose=False,
                             is_complie=True,
                             dense_feat_size=d_train_dense.shape[1],
                             series_length=train_seq.shape[1],

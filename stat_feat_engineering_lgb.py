@@ -180,7 +180,7 @@ if __name__ == "__main__":
     file_processor = LoadSave()
     embedding_feats = file_processor.load_data(path=".//data_tmp//embedding_df.pkl")
 
-    stat_feats = pd.merge(stat_feats, embedding_feats, on="fragment_id", how="left")
+    # stat_feats = pd.merge(stat_feats, embedding_feats, on="fragment_id", how="left")
 
     ##########################################################################
     # total_feats = pd.merge(total_feats, stat_feats, on="fragment_id", how="left")
