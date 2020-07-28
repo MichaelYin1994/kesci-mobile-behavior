@@ -175,10 +175,12 @@ if __name__ == "__main__":
     stat_feats = pd.concat(tmp, axis=0, ignore_index=True)
     stat_feats["fragment_id"] = fragment_id
 
-    # # Step 2: Loading embedding
-    # # ------------------------
-    # file_processor = LoadSave()
-    # embedding_feats = file_processor.load_data(path=".//data_tmp//embedding_df.pkl")
+    # Step 2: Loading embedding
+    # ------------------------
+    file_processor = LoadSave()
+    embedding_feats = file_processor.load_data(path=".//data_tmp//embedding_df.pkl")
+
+    stat_feats = pd.merge(stat_feats, embedding_feats, on="fragment_id", how="left")
 
     ##########################################################################
     # total_feats = pd.merge(total_feats, stat_feats, on="fragment_id", how="left")

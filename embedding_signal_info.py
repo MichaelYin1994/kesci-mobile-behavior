@@ -208,12 +208,12 @@ if __name__ == "__main__":
     labels = [seq["behavior_id"].unique()[0] for seq in train_data]
     seq = total_data[14]
 
-    mapping = {0: 0, 1: 0, 2: 0, 3: 0,
-                4: 3, 5: 0, 6: 1, 7: 1,
-                8: 1, 9: 1, 10: 1, 11: 0,
-                12: 2, 13: 2, 14: 2, 15: 2,
-                16: 2, 17: 2, 18: 2}
-    labels = [mapping[i] for i in labels]
+    # mapping = {0: 0, 1: 0, 2: 0, 3: 0,
+    #             4: 3, 5: 0, 6: 1, 7: 1,
+    #             8: 1, 9: 1, 10: 1, 11: 0,
+    #             12: 2, 13: 2, 14: 2, 15: 2,
+    #             16: 2, 17: 2, 18: 2}
+    # labels = [mapping[i] for i in labels]
 
     total_feats = pd.DataFrame(None)
     total_feats["fragment_id"] = fragment_id
@@ -237,14 +237,14 @@ if __name__ == "__main__":
     # ------------------------
     model_cbow_pos = compute_cbow_embedding(corpus=corpus_pos,
                                             embedding_size=40,
-                                            window_size=15,
+                                            window_size=3,
                                             min_count=4,
                                             iters=20,
                                             is_save_model=True,
                                             model_name="cbow_pos")
     model_cbow_acc = compute_cbow_embedding(corpus=corpus_acc,
                                             embedding_size=30,
-                                            window_size=15,
+                                            window_size=3,
                                             min_count=4,
                                             iters=20,
                                             is_save_model=True,
@@ -252,14 +252,14 @@ if __name__ == "__main__":
 
     model_sg_pos = compute_skip_gram_embedding(corpus=corpus_pos,
                                                 embedding_size=40,
-                                                window_size=15,
+                                                window_size=3,
                                                 min_count=4,
                                                 iters=20,
                                                 is_save_model=True,
                                                 model_name="sg_pos")
     model_sg_acc = compute_skip_gram_embedding(corpus=corpus_acc,
                                                 embedding_size=30,
-                                                window_size=15,
+                                                window_size=3,
                                                 min_count=4,
                                                 iters=20,
                                                 is_save_model=True,
@@ -312,7 +312,7 @@ if __name__ == "__main__":
                                                                           target_name="behavior_id",
                                                                           stratified=True, 
                                                                           shuffle=True,
-                                                                          n_classes=4,
+                                                                          n_classes=19,
                                                                           n_folds=n_folds)
     # clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
     #                         target_name="behavior_id", id_name="fragment_id",

@@ -101,7 +101,7 @@ def interp_seq(seq=None, length_interp=61):
     return interp_df
 
 
-def preprocessing_seq(seq=None, length_interp=65):
+def preprocessing_seq(seq=None, length_interp=62):
     """Interpolating a seq on selected feattures to the fixed length_interp"""
     seq["mod"] = np.sqrt(seq["acc_x"]**2 + seq["acc_y"]**2 + seq["acc_z"]**2)
     seq["modg"] = np.sqrt(seq["acc_xg"]**2 + seq["acc_yg"]**2 + seq["acc_zg"]**2)
@@ -144,9 +144,8 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     layer_reshape = tf.expand_dims(layer_input_series, -1)
 
     layer_conv_2d_first = []
-    kernel_size_list = [(3, 1), (5, 1), (7, 1), (11, 1),
-                        (3, 3), (5, 3), (7, 3),
-                        (5, 5), (7, 5), (11, 5)]
+    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (11, 3), (13, 3), (17, 3),
+                        (5, 5), (11, 5), (17, 5)]
     for kernel_size in kernel_size_list:
         layer = Conv2D(filters=64,
                        kernel_size=kernel_size,
@@ -154,11 +153,12 @@ def build_model(verbose=False, is_compile=True, **kwargs):
                        padding='same')(layer_reshape)
         layer = Conv2D(filters=64,
                        kernel_size=(3, 3),
+                       strides=2,
                        activation='relu',
                        padding='same')(layer)
         layer_conv_2d_first.append(layer)
 
-    dilation_size_list = [(1, 2), (1, 3), (1, 4), (1, 5)]
+    dilation_size_list = [(1, 3), (2, 3)]
     for dilation_size in dilation_size_list:
         layer = Conv2D(filters=64,
                        kernel_size=(5, 3),
@@ -167,6 +167,7 @@ def build_model(verbose=False, is_compile=True, **kwargs):
                        padding='same')(layer_reshape)
         layer = Conv2D(filters=64,
                        kernel_size=(3, 3),
+                       strides=2,
                        activation='relu',
                        padding='same')(layer)
         layer_conv_2d_first.append(layer)
@@ -198,7 +199,8 @@ def build_model(verbose=False, is_compile=True, **kwargs):
 
     # Concat all
     # -----------------
-    layer_pooling = concatenate(layer_global_pooling_2d + [layer_input_feats])
+    layer_dense_feats = Dropout(0.2)(layer_input_feats)
+    layer_pooling = concatenate(layer_global_pooling_2d + [layer_dense_feats])
 
     # Output structure
     # -----------------
@@ -271,7 +273,7 @@ if __name__ == "__main__":
 
     # Preparing and training models
     #########################################################################
-    N_FOLDS = 5
+    N_FOLDS = 15
     BATCH_SIZE = 2048
     N_EPOCHS = 700
     IS_STRATIFIED = False
