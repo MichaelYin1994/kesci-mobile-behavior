@@ -83,7 +83,7 @@ def interp_seq(seq=None, length_interp=61):
     return interp_df
 
 
-def split_seq(seq=None, strides=5, segment_length=35, padding=None):
+def split_seq(seq=None, strides=5, segment_length=15, padding=None):
     """Split the time serie seq according to the strides and segment_length."""
     if len(seq) < (segment_length + strides):
         raise ValueError("The length of seq is less than the segment_length + strides !")
@@ -203,6 +203,11 @@ if __name__ == "__main__":
     labels = [seq["behavior_id"].unique()[0] for seq in train_data]
     seq = total_data[14]
 
+    total_feats = pd.DataFrame(None)
+    total_feats["fragment_id"] = fragment_id
+    total_feats["behavior_id"] = labels + [np.nan] * len(test_data)
+    total_feats["is_train"] = [True] * len(train_data) + [False] * len(test_data)
+
     SENDING_TRAINING_INFO = False
     send_msg_to_dingtalk("++++++++++++++++++++++++++++", SENDING_TRAINING_INFO)
     INFO_TEXT = "[BEGIN]#Training: {}, #Testing: {}, at: {}".format(
@@ -244,7 +249,7 @@ if __name__ == "__main__":
 
     # Preparing and training models
     #########################################################################
-    N_FOLDS = 5
+    N_FOLDS = 15
     BATCH_SIZE = 2048
     N_EPOCHS = 700
     IS_STRATIFIED = False
@@ -253,13 +258,13 @@ if __name__ == "__main__":
 
     folds = GroupKFold(n_splits=N_FOLDS)
     scores = np.zeros((N_FOLDS, 7))
-    oof_pred = np.zeros((len(train_seq), 19))
-    y_pred = np.zeros((len(test_seq), 19))
+    oof_pred = np.zeros((len(train_data), 19))
+    y_pred = np.zeros((len(test_data), 19))
     early_stop = EarlyStopping(monitor='val_acc',
-                                mode='max',
-                                verbose=1,
-                                patience=70,
-                                restore_best_weights=True)
+                               mode='max',
+                               verbose=1,
+                               patience=70,
+                               restore_best_weights=True)
 
     # Training the NN classifier
     send_msg_to_dingtalk("\n[INFO]Start training NeuralNets CLASSIFIER at: {}".format(
@@ -300,14 +305,14 @@ if __name__ == "__main__":
             plt.close("all")
 
         # Training evaluation
+        # ---------------
         train_pred_proba = model.predict(x=[d_train],
                                           batch_size=BATCH_SIZE)
         valid_pred_proba = model.predict(x=[d_valid],
                                           batch_size=BATCH_SIZE)
         y_pred_proba = model.predict(x=[test_seq],
-                                      batch_size=BATCH_SIZE)
-        y_pred += y_pred_proba / N_FOLDS
-        oof_pred[split_val_id] = valid_pred_proba
+                                     batch_size=BATCH_SIZE)
+        # oof_pred[split_val_id] = valid_pred_proba
 
         # ---------------
         train_pred_proba = pd.DataFrame(train_pred_proba,
@@ -316,14 +321,24 @@ if __name__ == "__main__":
                                         index=train_group_id[split_val_id])
         y_pred_proba = pd.DataFrame(y_pred_proba,
                                     index=test_group_id)
-        train_pred_proba = train_pred_proba.groupby(train_pred_proba.index).agg(np.mean).values
-        valid_pred_proba = valid_pred_proba.groupby(valid_pred_proba.index).agg(np.mean).values
-        y_pred_proba = y_pred_proba.groupby(y_pred_proba.index).agg(np.mean).values
+        train_pred_proba = train_pred_proba.groupby(
+            train_pred_proba.index).agg(np.mean).values
+        valid_pred_proba = valid_pred_proba.groupby(
+            valid_pred_proba.index).agg(np.mean).values
+        y_pred_proba = y_pred_proba.groupby(
+            y_pred_proba.index).agg(np.mean).values
 
         df_train = pd.DataFrame(None, index=train_group_id[split_tra_id])
         df_valid = pd.DataFrame(None, index=train_group_id[split_val_id])
         df_train["labels"], df_valid["labels"] = split_labels[split_tra_id], split_labels[split_val_id]
 
+        # Training oof_pred and y_pred construction
+        # ---------------
+        y_pred += y_pred_proba / N_FOLDS
+        oof_val_id = df_valid.groupby(df_valid.index).agg(pd.Series.mode).reset_index()["index"].values - 10000000
+        oof_pred[oof_val_id] = valid_pred_proba
+
+        # Training figures construction
         # ---------------
         train_pred_label = np.argmax(train_pred_proba, axis=1).reshape((-1, 1))
         valid_pred_label = np.argmax(valid_pred_proba, axis=1).reshape((-1, 1))
@@ -354,10 +369,7 @@ if __name__ == "__main__":
             fold+1, N_FOLDS, valid_f1, valid_acc, valid_custom)
         send_msg_to_dingtalk(INFO_TEXT, is_send_msg=SENDING_TRAINING_INFO)
 
-    oof_pred_label = pd.DataFrame(oof_pred, index=train_group_id)
-    oof_pred_label = oof_pred_label.groupby(oof_pred_label.index).agg(np.mean).values
-    oof_pred_label = np.argmax(oof_pred_label, axis=1).reshape((-1, 1))
-
+    oof_pred_label = np.argmax(oof_pred, axis=1).reshape((-1, 1))
     total_f1 = f1_score(np.array(labels).reshape(-1, 1),
                         oof_pred_label.reshape((-1, 1)), average="macro")
     total_acc = accuracy_score(np.array(labels).reshape(-1, 1),
@@ -381,14 +393,11 @@ if __name__ == "__main__":
                                            "train_custom", "valid_custom"])
     y_pred = pd.DataFrame(
         y_pred, columns=["y_pred_{}".format(i) for i in range(19)])
-    y_pred["fragment_id"] = total_split_feats[total_split_feats["behavior_id"].isnull()]["fragment_id"].values
+    y_pred["fragment_id"] = total_feats.query("is_train == False")["fragment_id"].values
     oof_pred = pd.DataFrame(
         oof_pred, columns=["oof_pred_{}".format(i) for i in range(19)])
-    oof_pred["fragment_id"] = total_split_feats[total_split_feats["behavior_id"].notnull()]["fragment_id"].values
-    oof_pred["behavior_id"] = total_split_feats[total_split_feats["behavior_id"].notnull()]["behavior_id"].values
+    oof_pred["fragment_id"], oof_pred["behavior_id"] = total_feats.query("is_train == True")["fragment_id"].values, total_feats.query("is_train == True")["behavior_id"].values
 
-    y_pred_tmp = y_pred.groupby("fragment_id").mean().reset_index()
-    oof_pred_tmp = oof_pred.groupby("fragment_id").mean().reset_index()
-    clf_pred_to_submission(y_valid=oof_pred_tmp, y_pred=y_pred_tmp, score=scores,
-                            target_name="behavior_id", id_name="fragment_id",
-                            sub_str_field="nn_split_{}".format(N_FOLDS), save_oof=True)
+    clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
+                           target_name="behavior_id", id_name="fragment_id",
+                           sub_str_field="nn_split_{}".format(N_FOLDS), save_oof=True)
