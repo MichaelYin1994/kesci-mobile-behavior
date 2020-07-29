@@ -47,7 +47,7 @@ gpus = tf.config.experimental.list_physical_devices('GPU')
 if gpus:
     try:
         # Restrict TensorFlow to only use the first GPU
-        tf.config.experimental.set_visible_devices(gpus[0], 'GPU')
+        tf.config.experimental.set_visible_devices(gpus[1], 'GPU')
 
         # Currently, memory growth needs to be the same across GPUs
         for gpu in gpus:
@@ -83,7 +83,7 @@ def interp_seq(seq=None, length_interp=61):
     return interp_df
 
 
-def split_seq(seq=None, strides=20, segment_length=40, padding=None):
+def split_seq(seq=None, strides=15, segment_length=35, padding=None):
     """Split the time serie seq according to the strides and segment_length."""
     if len(seq) < (segment_length + strides):
         raise ValueError("The length of seq is less than the segment_length + strides !")
@@ -109,7 +109,7 @@ def split_seq(seq=None, strides=20, segment_length=40, padding=None):
     return seq_split
 
 
-def preprocessing_seq(seq=None, length_interp=62, **kwargs):
+def preprocessing_seq(seq=None, length_interp=66, **kwargs):
     """Interpolating a seq on selected feattures to the fixed length_interp"""
     seq["mod"] = np.sqrt(seq["acc_x"]**2 + seq["acc_y"]**2 + seq["acc_z"]**2)
     seq["modg"] = np.sqrt(seq["acc_xg"]**2 + seq["acc_yg"]**2 + seq["acc_zg"]**2)
