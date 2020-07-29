@@ -83,7 +83,7 @@ def interp_seq(seq=None, length_interp=61):
     return interp_df
 
 
-def split_seq(seq=None, strides=20, segment_length=40, padding=None):
+def split_seq(seq=None, strides=5, segment_length=40, padding=None):
     """Split the time serie seq according to the strides and segment_length."""
     if len(seq) < (segment_length + strides):
         raise ValueError("The length of seq is less than the segment_length + strides !")
@@ -240,7 +240,7 @@ if __name__ == "__main__":
 
     # Preparing and training models
     #########################################################################
-    N_FOLDS = 10
+    N_FOLDS = 5
     BATCH_SIZE = 2048
     N_EPOCHS = 700
     IS_STRATIFIED = False
