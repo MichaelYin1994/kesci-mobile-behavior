@@ -135,7 +135,7 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     # -----------------
     layer_reshape = tf.expand_dims(layer_input_series, -1)
 
-    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (11, 3), (5, 5)]
+    kernel_size_list = [(3, 3), (5, 3), (7, 3), (5, 5)]
     layer_conv_2d_first = []
     for kernel_size in kernel_size_list:
         layer_feat_map = Conv2D(filters=64,
@@ -249,7 +249,7 @@ if __name__ == "__main__":
 
     # Preparing and training models
     #########################################################################
-    N_FOLDS = 10
+    N_FOLDS = 5
     BATCH_SIZE = 2048
     N_EPOCHS = 700
     IS_STRATIFIED = False
@@ -312,7 +312,6 @@ if __name__ == "__main__":
                                           batch_size=BATCH_SIZE)
         y_pred_proba = model.predict(x=[test_seq],
                                      batch_size=BATCH_SIZE)
-        # oof_pred[split_val_id] = valid_pred_proba
 
         # ---------------
         train_pred_proba = pd.DataFrame(train_pred_proba,
