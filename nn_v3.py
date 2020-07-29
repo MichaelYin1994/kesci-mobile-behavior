@@ -83,7 +83,7 @@ def interp_seq(seq=None, length_interp=61):
     return interp_df
 
 
-def split_seq(seq=None, strides=5, segment_length=40, padding=None):
+def split_seq(seq=None, strides=5, segment_length=25, padding=None):
     """Split the time serie seq according to the strides and segment_length."""
     if len(seq) < (segment_length + strides):
         raise ValueError("The length of seq is less than the segment_length + strides !")
@@ -156,6 +156,10 @@ def build_model(verbose=False, is_compile=True, **kwargs):
         layer_avg_pool = AveragePooling2D(pool_size=(2, 2), padding="valid")(layer)
         layer_avg_pool = Dropout(0.22)(layer_avg_pool)
         layer_local_pooling_2d.append(layer_avg_pool)
+
+        layer_max_pool = MaxPooling2D(pool_size=(2, 2), padding="valid")(layer)
+        layer_max_pool = Dropout(0.22)(layer_max_pool)
+        layer_local_pooling_2d.append(layer_max_pool)
 
     layer_conv_2d_second = []
     for layer in layer_local_pooling_2d:

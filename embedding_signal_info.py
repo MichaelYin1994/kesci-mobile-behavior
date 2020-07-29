@@ -237,13 +237,13 @@ if __name__ == "__main__":
     # ------------------------
     model_cbow_pos = compute_cbow_embedding(corpus=corpus_pos,
                                             embedding_size=40,
-                                            window_size=3,
+                                            window_size=20,
                                             min_count=4,
                                             iters=20,
                                             is_save_model=True,
                                             model_name="cbow_pos")
     model_cbow_acc = compute_cbow_embedding(corpus=corpus_acc,
-                                            embedding_size=30,
+                                            embedding_size=20,
                                             window_size=3,
                                             min_count=4,
                                             iters=20,
@@ -252,13 +252,13 @@ if __name__ == "__main__":
 
     model_sg_pos = compute_skip_gram_embedding(corpus=corpus_pos,
                                                 embedding_size=40,
-                                                window_size=3,
+                                                window_size=20,
                                                 min_count=4,
                                                 iters=20,
                                                 is_save_model=True,
                                                 model_name="sg_pos")
     model_sg_acc = compute_skip_gram_embedding(corpus=corpus_acc,
-                                                embedding_size=30,
+                                                embedding_size=20,
                                                 window_size=3,
                                                 min_count=4,
                                                 iters=20,
@@ -314,6 +314,6 @@ if __name__ == "__main__":
                                                                           shuffle=True,
                                                                           n_classes=19,
                                                                           n_folds=n_folds)
-    # clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
-    #                         target_name="behavior_id", id_name="fragment_id",
-    #                         sub_str_field="lgb_{}".format(n_folds), save_oof=False)
+    clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
+                            target_name="behavior_id", id_name="fragment_id",
+                            sub_str_field="lgb_{}".format(n_folds), save_oof=False)

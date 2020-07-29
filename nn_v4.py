@@ -157,6 +157,10 @@ def build_model(verbose=False, is_compile=True, **kwargs):
         layer_avg_pool = Dropout(0.22)(layer_avg_pool)
         layer_local_pooling_2d.append(layer_avg_pool)
 
+        layer_max_pool = MaxPooling2D(pool_size=(2, 2), padding="valid")(layer)
+        layer_max_pool = Dropout(0.22)(layer_max_pool)
+        layer_local_pooling_2d.append(layer_max_pool)
+
     layer_conv_2d_second = []
     for layer in layer_local_pooling_2d:
         layer = Conv2D(filters=128,
