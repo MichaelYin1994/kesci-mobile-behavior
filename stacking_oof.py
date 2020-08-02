@@ -23,12 +23,12 @@ sns.set(style="ticks", font_scale=1.2, palette='deep', color_codes=True)
 ###############################################################################
 ###############################################################################
 if __name__ == "__main__":
-    oof_pred_names = ["32_nn_split_15_vf1_7812_vacc_792_vc_8214_valid.csv",
-                      "31_nn_split_15_vf1_7747_vacc_7851_vc_8163_valid.csv",
-                      "24_nn_15_vf1_7685_vacc_781_vc_8124_valid.csv"]
-    y_pred_names = ["32_nn_split_15_vf1_7812_vacc_792_vc_8214_pred.csv",
-                    "31_nn_split_15_vf1_7747_vacc_7851_vc_8163_pred.csv",
-                    "24_nn_15_vf1_7685_vacc_781_vc_8124_pred.csv"]
+    oof_pred_names = ["57_nn_split_15_vf1_8058_vacc_8135_vc_8404_valid.csv",
+                      "56_nn_split_10_vf1_8033_vacc_8125_vc_8391_valid.csv",
+                      "51_nn_split_10_vf1_8077_vacc_8154_vc_8421_valid.csv"]
+    y_pred_names = ["57_nn_split_15_vf1_8058_vacc_8135_vc_8404_pred.csv",
+                    "56_nn_split_10_vf1_8033_vacc_8125_vc_8391_pred.csv",
+                    "51_nn_split_10_vf1_8077_vacc_8154_vc_8421_pred.csv"]
 
     oof_pred, y_pred = [], []
     for oof_pred_name, y_pred_name in zip(oof_pred_names, y_pred_names):
@@ -61,9 +61,24 @@ if __name__ == "__main__":
     y_pred = pd.concat(y_pred, axis=1)
     y_pred["fragment_id"] = y_pred_id_col
 
+    # Averaging
+    # oof_pred = np.mean([item.values for item in oof_pred], axis=0)
+    # y_pred = np.mean([item.values for item in y_pred], axis=0)
+
+    # oof_pred = pd.DataFrame(oof_pred)
+    # y_pred = pd.DataFrame(y_pred)
+    # oof_pred["fragment_id"], oof_pred["behavior_id"] = oof_id_col, oof_target_col
+    # y_pred["fragment_id"] = y_pred_id_col
+
+    # scores = np.zeros((n_folds, 8))
+    # scores = pd.DataFrame(scores, columns=["folds", "train_f1", "train_acc",
+    #                                        "valid_f1", "valid_acc",
+    #                                        "train_custom", "valid_custom",
+    #                                        "best_iters"])
+
     # Model training
     ##########################################################################
-    n_folds = 10
+    n_folds = 5
     scores, importances, oof_pred, y_pred = lightgbm_classifier_training(train_df=oof_pred, 
                                                                           test_df=y_pred,
                                                                           id_name="fragment_id",

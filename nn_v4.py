@@ -83,7 +83,7 @@ def interp_seq(seq=None, length_interp=61):
     return interp_df
 
 
-def split_seq(seq=None, strides=5, segment_length=15, padding=None):
+def split_seq(seq=None, strides=5, segment_length=35, padding=None):
     """Split the time serie seq according to the strides and segment_length."""
     if len(seq) < (segment_length + strides):
         raise ValueError("The length of seq is less than the segment_length + strides !")
@@ -109,7 +109,7 @@ def split_seq(seq=None, strides=5, segment_length=15, padding=None):
     return seq_split
 
 
-def preprocessing_seq(seq=None, length_interp=66, **kwargs):
+def preprocessing_seq(seq=None, length_interp=62, **kwargs):
     """Interpolating a seq on selected feattures to the fixed length_interp"""
     seq["mod"] = np.sqrt(seq["acc_x"]**2 + seq["acc_y"]**2 + seq["acc_z"]**2)
     seq["modg"] = np.sqrt(seq["acc_xg"]**2 + seq["acc_yg"]**2 + seq["acc_zg"]**2)
@@ -135,7 +135,7 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     # -----------------
     layer_reshape = tf.expand_dims(layer_input_series, -1)
 
-    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (11, 3), (5, 5)]
+    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (5, 5), (11, 5)]
     layer_conv_2d_first = []
     for kernel_size in kernel_size_list:
         layer_feat_map = Conv2D(filters=64,
@@ -157,9 +157,9 @@ def build_model(verbose=False, is_compile=True, **kwargs):
         layer_avg_pool = Dropout(0.22)(layer_avg_pool)
         layer_local_pooling_2d.append(layer_avg_pool)
 
-        layer_max_pool = MaxPooling2D(pool_size=(2, 2), padding="valid")(layer)
-        layer_max_pool = Dropout(0.22)(layer_max_pool)
-        layer_local_pooling_2d.append(layer_max_pool)
+        # layer_max_pool = MaxPooling2D(pool_size=(2, 2), padding="valid")(layer)
+        # layer_max_pool = Dropout(0.22)(layer_max_pool)
+        # layer_local_pooling_2d.append(layer_max_pool)
 
     layer_conv_2d_second = []
     for layer in layer_local_pooling_2d:
@@ -249,7 +249,7 @@ if __name__ == "__main__":
 
     # Preparing and training models
     #########################################################################
-    N_FOLDS = 15
+    N_FOLDS = 5
     BATCH_SIZE = 2048
     N_EPOCHS = 700
     IS_STRATIFIED = False
@@ -263,7 +263,7 @@ if __name__ == "__main__":
     early_stop = EarlyStopping(monitor='val_acc',
                                mode='max',
                                verbose=1,
-                               patience=70,
+                               patience=50,
                                restore_best_weights=True)
 
     # Training the NN classifier
