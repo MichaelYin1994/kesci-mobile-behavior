@@ -183,7 +183,6 @@ def compute_tfidf_feats(corpus=None, max_feats=100):
 
 
 def corpus_to_sequence(corpus=None):
-
     # New corpus
     word_index, new_corpus, count = {}, [], 0
     for sentence in corpus:

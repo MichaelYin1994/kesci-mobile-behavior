@@ -83,7 +83,7 @@ def interp_seq(seq=None, length_interp=61):
     return interp_df
 
 
-def split_seq(seq=None, strides=5, segment_length=40, padding=None):
+def split_seq(seq=None, strides=5, segment_length=20, padding=None):
     """Split the time serie seq according to the strides and segment_length."""
     if len(seq) < (segment_length + strides):
         raise ValueError("The length of seq is less than the segment_length + strides !")
@@ -135,27 +135,23 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     # -----------------
     layer_reshape = tf.expand_dims(layer_input_series, -1)
 
-    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (11, 3), (13, 3),
-                        (5, 5), (5, 7), (7, 7), (9, 7), (11, 5)]
+    kernel_size_list = [(3, 3), (5, 3), (7, 3), (11, 3)]
     layer_conv_2d_first = []
     for kernel_size in kernel_size_list:
         layer_feat_map = Conv2D(filters=64,
                                 kernel_size=kernel_size,
                                 activation='relu',
                                 padding='same')(layer_reshape)
-        layer_residual = ReLU()(layer_feat_map)
-        layer_residual = Conv2D(filters=64,
-                                kernel_size=(3, 3),
+        layer_feat_map = Conv2D(filters=64,
+                                kernel_size=(5, 3),
                                 activation='relu',
-                                padding='same')(layer_residual)
-        layer_0 = Add()([layer_feat_map, layer_residual])
-        layer_0 = ReLU()(layer_0)
-        layer_conv_2d_first.append(layer_0)
+                                padding='same')(layer_feat_map)
+        layer_conv_2d_first.append(layer_feat_map)
 
     layer_local_pooling_2d = []
     for layer in layer_conv_2d_first:
         layer_avg_pool = AveragePooling2D(pool_size=(2, 2), padding="valid")(layer)
-        layer_avg_pool = Dropout(0.22)(layer_avg_pool)
+        layer_avg_pool = Dropout(0.25)(layer_avg_pool)
         layer_local_pooling_2d.append(layer_avg_pool)
 
         # layer_max_pool = MaxPooling2D(pool_size=(2, 2), padding="valid")(layer)
@@ -182,7 +178,7 @@ def build_model(verbose=False, is_compile=True, **kwargs):
 
     # Output structure
     # -----------------
-    layer_output = Dropout(0.22)(layer_pooling)
+    layer_output = Dropout(0.2)(layer_pooling)
     layer_output = Dense(128, activation="relu")(layer_output)
     layer_output = Dense(19, activation='softmax')(layer_output)
 
@@ -209,7 +205,7 @@ if __name__ == "__main__":
     total_feats["behavior_id"] = labels + [np.nan] * len(test_data)
     total_feats["is_train"] = [True] * len(train_data) + [False] * len(test_data)
 
-    SENDING_TRAINING_INFO = True
+    SENDING_TRAINING_INFO = False
     send_msg_to_dingtalk("++++++++++++++++++++++++++++", SENDING_TRAINING_INFO)
     INFO_TEXT = "[BEGIN]#Training: {}, #Testing: {}, at: {}".format(
         len(train_data),
@@ -250,7 +246,7 @@ if __name__ == "__main__":
 
     # Preparing and training models
     #########################################################################
-    N_FOLDS = 5
+    N_FOLDS = 10
     BATCH_SIZE = 2048
     N_EPOCHS = 700
     IS_STRATIFIED = False
@@ -264,7 +260,7 @@ if __name__ == "__main__":
     early_stop = EarlyStopping(monitor='val_acc',
                                mode='max',
                                verbose=1,
-                               patience=50,
+                               patience=100,
                                restore_best_weights=True)
 
     # Training the NN classifier
@@ -277,10 +273,12 @@ if __name__ == "__main__":
         t_train, t_valid = targets_oht[split_tra_id], targets_oht[split_val_id]
 
         # Destroy all graph nodes in memory
+        # ---------------
         K.clear_session()
         gc.collect()
 
         # Training NN classifier
+        # ---------------
         model = build_model(verbose=False,
                             is_complie=True,
                             series_length=train_seq.shape[1],
@@ -295,6 +293,7 @@ if __name__ == "__main__":
                             verbose=2)
 
         # Model trianing plots
+        # ---------------
         if PLOT_TRAINING:
             plot_metric(history, metric_type="acc")
             plt.savefig(".//plots//training_fold_acc_{}.png".format(fold),
