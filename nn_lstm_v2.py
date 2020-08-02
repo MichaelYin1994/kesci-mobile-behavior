@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+Created on Mon Aug  3 03:11:38 2020
+
+@author: gv1001107
+"""
+
+
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
 Created on Sat Aug  1 21:15:12 2020
 
 @author: gv1001107
@@ -50,7 +59,7 @@ gpus = tf.config.experimental.list_physical_devices('GPU')
 if gpus:
     try:
         # Restrict TensorFlow to only use the first GPU
-        tf.config.experimental.set_visible_devices(gpus[0], 'GPU')
+        tf.config.experimental.set_visible_devices(gpus[1], 'GPU')
 
         # Currently, memory growth needs to be the same across GPUs
         for gpu in gpus:
@@ -323,58 +332,22 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     # concat all input
     # -----------------
     layer_total = concatenate([embedding_acc, embedding_pos, layer_input_series])
-    layer_reshape = tf.expand_dims(layer_total, -1)
 
-    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (5, 5), (11, 5), (7, 7)]
-    layer_conv_2d_first = []
-    for kernel_size in kernel_size_list:
-        layer_feat_map = Conv2D(filters=64,
-                                kernel_size=kernel_size,
-                                activation='relu',
-                                padding='same')(layer_reshape)
-        layer_feat_map = Conv2D(filters=64,
-                                kernel_size=(5, 3),
-                                activation='relu',
-                                padding='same')(layer_feat_map)
-        layer_conv_2d_first.append(layer_feat_map)
+    layer_total = SpatialDropout1D(0.15)(layer_total)
+    layer_lstm_0 = Bidirectional(GRU(40, return_sequences=True))(layer_total)
+    layer_lstm_0 = SpatialDropout1D(0.15)(layer_lstm_0)
+    layer_lstm_1 = Bidirectional(GRU(40, return_sequences=True))(layer_lstm_0)
 
-    layer_local_pooling_2d = []
-    for layer in layer_conv_2d_first:
-        layer_avg_pool = AveragePooling2D(pool_size=(2, 2), padding="valid")(layer)
-        layer_avg_pool = Dropout(0.25)(layer_avg_pool)
-        layer_local_pooling_2d.append(layer_avg_pool)
-
-    layer_conv_2d_second = []
-    for layer in layer_local_pooling_2d:
-        layer = Conv2D(filters=128,
-                       kernel_size=(3, 3),
-                       activation='relu',
-                       padding='valid')(layer)
-        layer = Dropout(0.22)(layer)
-        layer_conv_2d_second.append(layer)
-
-    # Concatenating the pooling layer
-    layer_global_pooling_2d = []
-    for layer in layer_conv_2d_second:
-        layer_global_pooling_2d.append(GlobalAveragePooling2D()(layer))
+    # layer_lstm_0 = AveragePooling
+    layer_avg_pool = GlobalAveragePooling1D()(layer_lstm_1)
 
     # Concat all
     # -----------------
-    layer_pooling = concatenate(layer_global_pooling_2d)
-
-    # layer_total = SpatialDropout1D(0.15)(layer_total)
-    # layer_total = Bidirectional(GRU(80, return_sequences=True))(layer_total)
-    #
-    # layer_max_pool = GlobalMaxPooling1D()(layer_total)
-    # layer_avg_pool = GlobalAveragePooling1D()(layer_total)
-    #
-    # # Concat all
-    # # -----------------
-    # layer_pooling = concatenate([layer_max_pool, layer_avg_pool])
+    # layer_pooling = concatenate([layer_avg_pool])
 
     # Output structure
     # -----------------
-    layer_output = Dropout(0.2)(layer_pooling)
+    layer_output = Dropout(0.2)(layer_avg_pool)
     layer_output = Dense(128, activation="relu")(layer_output)
     layer_output = Dense(19, activation='softmax')(layer_output)
 
@@ -388,137 +361,137 @@ def build_model(verbose=False, is_compile=True, **kwargs):
 
 
 if __name__ == "__main__":
-    train_data = load_data("train.pkl")
-    test_data = load_data("test.pkl")
+    # train_data = load_data("train.pkl")
+    # test_data = load_data("test.pkl")
 
-    total_data = train_data + test_data
-    labels = [seq["behavior_id"].unique()[0] for seq in train_data]
-    seq = total_data[14]
+    # total_data = train_data + test_data
+    # labels = [seq["behavior_id"].unique()[0] for seq in train_data]
+    # seq = total_data[14]
 
-    total_feats = pd.DataFrame(None)
-    total_feats["fragment_id"] = [seq["fragment_id"].unique()[0] for seq in total_data]
-    total_feats["behavior_id"] = labels + [np.nan] * len(test_data)
-    total_feats["is_train"] = [True] * len(train_data) + [False] * len(test_data)
+    # total_feats = pd.DataFrame(None)
+    # total_feats["fragment_id"] = [seq["fragment_id"].unique()[0] for seq in total_data]
+    # total_feats["behavior_id"] = labels + [np.nan] * len(test_data)
+    # total_feats["is_train"] = [True] * len(train_data) + [False] * len(test_data)
 
-    SENDING_TRAINING_INFO = False
-    send_msg_to_dingtalk("++++++++++++++++++++++++++++", SENDING_TRAINING_INFO)
-    INFO_TEXT = "[BEGIN]#Training: {}, #Testing: {}, at: {}".format(
-        len(train_data),
-        len(test_data),
-        str(datetime.now())[:-7])
-    send_msg_to_dingtalk(info_text=INFO_TEXT, is_send_msg=SENDING_TRAINING_INFO)
+    # SENDING_TRAINING_INFO = False
+    # send_msg_to_dingtalk("++++++++++++++++++++++++++++", SENDING_TRAINING_INFO)
+    # INFO_TEXT = "[BEGIN]#Training: {}, #Testing: {}, at: {}".format(
+    #     len(train_data),
+    #     len(test_data),
+    #     str(datetime.now())[:-7])
+    # send_msg_to_dingtalk(info_text=INFO_TEXT, is_send_msg=SENDING_TRAINING_INFO)
 
-    ##########################################################################
-    # Step 1: Interpolate all the sequence to the fixed length
-    # ------------------------
-    res = preprocessing_seq(total_data[0].copy())
-    with mp.Pool(processes=mp.cpu_count()) as p:
-        tmp = list(tqdm(p.imap(preprocessing_seq, total_data),
-                        total=len(total_data)))
+    # ##########################################################################
+    # # Step 1: Interpolate all the sequence to the fixed length
+    # # ------------------------
+    # res = preprocessing_seq(total_data[0].copy())
+    # with mp.Pool(processes=mp.cpu_count()) as p:
+    #     tmp = list(tqdm(p.imap(preprocessing_seq, total_data),
+    #                     total=len(total_data)))
 
-    total_split_data, seq_id, seq_label = [], [], []
-    for item in tmp:
-        total_split_data.extend(item[0])
-        seq_label.extend(item[1])
-        seq_id.extend(item[2])
+    # total_split_data, seq_id, seq_label = [], [], []
+    # for item in tmp:
+    #     total_split_data.extend(item[0])
+    #     seq_label.extend(item[1])
+    #     seq_id.extend(item[2])
 
-    total_split_feats = pd.DataFrame(None)
-    total_split_feats["behavior_id"] = seq_label
-    total_split_feats["fragment_id"] = seq_id
-    n_split_train, n_split_test = total_split_feats["behavior_id"].notnull().sum(), total_split_feats["behavior_id"].isnull().sum()
+    # total_split_feats = pd.DataFrame(None)
+    # total_split_feats["behavior_id"] = seq_label
+    # total_split_feats["fragment_id"] = seq_id
+    # n_split_train, n_split_test = total_split_feats["behavior_id"].notnull().sum(), total_split_feats["behavior_id"].isnull().sum()
 
-    INFO_TEXT = "[INFO] #splite train: {}, #split test: {}, segment_shape: {}".format(
-        n_split_train, n_split_test, len(tmp[0][0]))
-    send_msg_to_dingtalk(info_text=INFO_TEXT, is_send_msg=SENDING_TRAINING_INFO)
+    # INFO_TEXT = "[INFO] #splite train: {}, #split test: {}, segment_shape: {}".format(
+    #     n_split_train, n_split_test, len(tmp[0][0]))
+    # send_msg_to_dingtalk(info_text=INFO_TEXT, is_send_msg=SENDING_TRAINING_INFO)
 
-    train_seq, test_seq = total_split_data[:n_split_train], total_split_data[n_split_train:]
-    train_seq, test_seq = np.array(train_seq), np.array(test_seq)
+    # train_seq, test_seq = total_split_data[:n_split_train], total_split_data[n_split_train:]
+    # train_seq, test_seq = np.array(train_seq), np.array(test_seq)
 
-    train_group_id = total_split_feats[total_split_feats["behavior_id"].notnull()]["fragment_id"].values
-    test_group_id = total_split_feats[total_split_feats["behavior_id"].isnull()]["fragment_id"].values
-    split_labels = total_split_feats[total_split_feats["behavior_id"].notnull()]["behavior_id"].values
+    # train_group_id = total_split_feats[total_split_feats["behavior_id"].notnull()]["fragment_id"].values
+    # test_group_id = total_split_feats[total_split_feats["behavior_id"].isnull()]["fragment_id"].values
+    # split_labels = total_split_feats[total_split_feats["behavior_id"].notnull()]["behavior_id"].values
 
-    ##########################################################################
-    # Step 2: Position and position-with-acc to corpus
-    # ------------------------
-    total_split_data = [pd.DataFrame(item, columns=["acc_x", "acc_y", "acc_z",
-                                                    "acc_xg", "acc_yg", "acc_zg",
-                                                    "mod", "modg"]) for item in total_split_data]
+    # ##########################################################################
+    # # Step 2: Position and position-with-acc to corpus
+    # # ------------------------
+    # total_split_data = [pd.DataFrame(item, columns=["acc_x", "acc_y", "acc_z",
+    #                                                 "acc_xg", "acc_yg", "acc_zg",
+    #                                                 "mod", "modg"]) for item in total_split_data]
 
-    # Preprocessing of pos
-    # ------------------------
-    with mp.Pool(processes=mp.cpu_count()) as p:
-        tmp = list(tqdm(p.imap(seq_pos_to_corpus, total_split_data),
-                        total=len(total_split_data)))
-    corpus_pos, _ = corpus_to_sequence(tmp)
+    # # Preprocessing of pos
+    # # ------------------------
+    # with mp.Pool(processes=mp.cpu_count()) as p:
+    #     tmp = list(tqdm(p.imap(seq_pos_to_corpus, total_split_data),
+    #                     total=len(total_split_data)))
+    # corpus_pos, _ = corpus_to_sequence(tmp)
 
-    vocab_max_feats_pos = 50000
-    tokenizer = Tokenizer(num_words=vocab_max_feats_pos, oov_token="nan")
-    tokenizer.fit_on_texts(corpus_pos)
-    vocab_pos = tokenizer.word_index
-    corpus_pos_transfer = np.array(tokenizer.texts_to_sequences(corpus_pos))
-    train_id_pos, test_id_pos = corpus_pos_transfer[:n_split_train], corpus_pos_transfer[n_split_train:]
+    # vocab_max_feats_pos = 50000
+    # tokenizer = Tokenizer(num_words=vocab_max_feats_pos, oov_token="nan")
+    # tokenizer.fit_on_texts(corpus_pos)
+    # vocab_pos = tokenizer.word_index
+    # corpus_pos_transfer = np.array(tokenizer.texts_to_sequences(corpus_pos))
+    # train_id_pos, test_id_pos = corpus_pos_transfer[:n_split_train], corpus_pos_transfer[n_split_train:]
 
-    # Preprocessing of pos with acc
-    # ------------------------
-    res = seq_acc_to_corpus(seq)
-    with mp.Pool(processes=mp.cpu_count()) as p:
-        tmp = list(tqdm(p.imap(seq_acc_to_corpus, total_split_data),
-                        total=len(total_split_data)))
-    corpus_acc, _ = corpus_to_sequence(tmp)
+    # # Preprocessing of pos with acc
+    # # ------------------------
+    # res = seq_acc_to_corpus(seq)
+    # with mp.Pool(processes=mp.cpu_count()) as p:
+    #     tmp = list(tqdm(p.imap(seq_acc_to_corpus, total_split_data),
+    #                     total=len(total_split_data)))
+    # corpus_acc, _ = corpus_to_sequence(tmp)
 
-    vocab_max_feats_acc = 150000
-    tokenizer = Tokenizer(num_words=vocab_max_feats_acc, oov_token="nan")
-    tokenizer.fit_on_texts(corpus_acc)
-    vocab_acc = tokenizer.word_index
-    corpus_acc_transfer = np.array(tokenizer.texts_to_sequences(corpus_acc))
-    train_id_acc, test_id_acc = corpus_acc_transfer[:n_split_train], corpus_pos_transfer[n_split_train:]
+    # vocab_max_feats_acc = 150000
+    # tokenizer = Tokenizer(num_words=vocab_max_feats_acc, oov_token="nan")
+    # tokenizer.fit_on_texts(corpus_acc)
+    # vocab_acc = tokenizer.word_index
+    # corpus_acc_transfer = np.array(tokenizer.texts_to_sequences(corpus_acc))
+    # train_id_acc, test_id_acc = corpus_acc_transfer[:n_split_train], corpus_pos_transfer[n_split_train:]
 
-    ##########################################################################
-    # Step 3: Training word2vec embedding
-    # ------------------------
-    model_cbow_pos = compute_cbow_embedding(corpus=corpus_pos,
-                                            embedding_size=40,
-                                            window_size=5,
-                                            min_count=4,
-                                            iters=20,
-                                            is_save_model=False,
-                                            model_name="cbow_pos")
-    model_cbow_acc = compute_cbow_embedding(corpus=corpus_acc,
-                                            embedding_size=40,
-                                            window_size=5,
-                                            min_count=4,
-                                            iters=20,
-                                            is_save_model=False,
-                                            model_name="cbow_acc")
+    # ##########################################################################
+    # # Step 3: Training word2vec embedding
+    # # ------------------------
+    # model_cbow_pos = compute_cbow_embedding(corpus=corpus_pos,
+    #                                         embedding_size=40,
+    #                                         window_size=5,
+    #                                         min_count=4,
+    #                                         iters=20,
+    #                                         is_save_model=False,
+    #                                         model_name="cbow_pos")
+    # model_cbow_acc = compute_cbow_embedding(corpus=corpus_acc,
+    #                                         embedding_size=40,
+    #                                         window_size=5,
+    #                                         min_count=4,
+    #                                         iters=20,
+    #                                         is_save_model=False,
+    #                                         model_name="cbow_acc")
 
-    # # model_sg_pos = compute_skip_gram_embedding(corpus=corpus_pos,
-    # #                                             embedding_size=40,
-    # #                                             window_size=5,
-    # #                                             min_count=4,
-    # #                                             iters=20,
-    # #                                             is_save_model=False,
-    # #                                             model_name="sg_pos")
-    # # model_sg_acc = compute_skip_gram_embedding(corpus=corpus_acc,
-    # #                                             embedding_size=40,
-    # #                                             window_size=5,
-    # #                                             min_count=4,
-    # #                                             iters=20,
-    # #                                             is_save_model=False,
-    # #                                             model_name="sg_acc")
-    model_pos, model_acc = model_cbow_pos, model_cbow_acc
-    ##########################################################################
-    # Step 4: Bulid the pre-training embedding matrix
-    # ------------------------
-    embedding_mat_pos = build_embedding_matrix(word_index=vocab_pos,
-                                                embedding_index=model_pos,
-                                                max_feats=vocab_max_feats_pos,
-                                                embedding_size=40)
+    # # # model_sg_pos = compute_skip_gram_embedding(corpus=corpus_pos,
+    # # #                                             embedding_size=40,
+    # # #                                             window_size=5,
+    # # #                                             min_count=4,
+    # # #                                             iters=20,
+    # # #                                             is_save_model=False,
+    # # #                                             model_name="sg_pos")
+    # # # model_sg_acc = compute_skip_gram_embedding(corpus=corpus_acc,
+    # # #                                             embedding_size=40,
+    # # #                                             window_size=5,
+    # # #                                             min_count=4,
+    # # #                                             iters=20,
+    # # #                                             is_save_model=False,
+    # # #                                             model_name="sg_acc")
+    # model_pos, model_acc = model_cbow_pos, model_cbow_acc
+    # ##########################################################################
+    # # Step 4: Bulid the pre-training embedding matrix
+    # # ------------------------
+    # embedding_mat_pos = build_embedding_matrix(word_index=vocab_pos,
+    #                                             embedding_index=model_pos,
+    #                                             max_feats=vocab_max_feats_pos,
+    #                                             embedding_size=40)
 
-    embedding_mat_acc = build_embedding_matrix(word_index=vocab_acc,
-                                                embedding_index=model_acc,
-                                                max_feats=vocab_max_feats_acc,
-                                                embedding_size=40)
+    # embedding_mat_acc = build_embedding_matrix(word_index=vocab_acc,
+    #                                             embedding_index=model_acc,
+    #                                             max_feats=vocab_max_feats_acc,
+    #                                             embedding_size=40)
 
     ##########################################################################
     # Step 5: Training NN

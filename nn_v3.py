@@ -83,7 +83,7 @@ def interp_seq(seq=None, length_interp=61):
     return interp_df
 
 
-def split_seq(seq=None, strides=5, segment_length=20, padding=None):
+def split_seq(seq=None, strides=5, segment_length=10, padding=None):
     """Split the time serie seq according to the strides and segment_length."""
     if len(seq) < (segment_length + strides):
         raise ValueError("The length of seq is less than the segment_length + strides !")
@@ -122,7 +122,6 @@ def preprocessing_seq(seq=None, length_interp=63, **kwargs):
     if "behavior_id" in seq.columns:
         labels = [seq["behavior_id"].iloc[0]] * len(seq_val)
     id_names = [seq["fragment_id"].iloc[0]] * len(seq_val)
-
     return seq_val, labels, id_names
 
 
@@ -135,7 +134,7 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     # -----------------
     layer_reshape = tf.expand_dims(layer_input_series, -1)
 
-    kernel_size_list = [(3, 3), (5, 3), (7, 3), (11, 3)]
+    kernel_size_list = [(3, 3), (5, 3), (7, 3)]
     layer_conv_2d_first = []
     for kernel_size in kernel_size_list:
         layer_feat_map = Conv2D(filters=64,
@@ -246,7 +245,7 @@ if __name__ == "__main__":
 
     # Preparing and training models
     #########################################################################
-    N_FOLDS = 10
+    N_FOLDS = 5
     BATCH_SIZE = 2048
     N_EPOCHS = 700
     IS_STRATIFIED = False
