@@ -28,6 +28,7 @@ from tensorflow.keras import regularizers, constraints, optimizers, layers
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.utils import to_categorical
+from keras.preprocessing.text import Tokenizer
 from tensorflow.keras import backend as K
 
 from sklearn.preprocessing import StandardScaler
@@ -132,10 +133,16 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     series_length = kwargs.pop("series_length", 61)
     series_feat_size = kwargs.pop("series_feat_size", 8)
     layer_input_series = Input(shape=(series_length, series_feat_size), name="input_series")
+    layer_input_acc = Input(shape=(series_length,), dtype='int32', name="input_creative_id")
+    layer_input_pos = Input(shape=(series_length,), dtype='int32', name="input_creative_id")
+
 
     # CONV_2d cross channel
     # -----------------
-    pass
+    
+
+
+
     return None
 
 
@@ -262,55 +269,46 @@ def seq_acc_to_corpus(seq=None):
     return corpus
 
 
-def corpus_to_sequence(corpus=None, min_count=3):
+def corpus_to_sequence(corpus=None):
     # New corpus
-    word_index, word_count, new_corpus, i = {}, {}, [], 0
-    for sentence in corpus:
-        for word in sentence:
-            if word in word_index:
-                word_count[word] += 1
-            else:
-                word_index[word] = str(i)
-                word_count[word] = 1
-                i += 1
-
-    # Exclude the word with frequeny less than min_count
+    word_index, new_corpus, count = {}, [], 0
     for sentence in corpus:
         new_sentence = []
         for word in sentence:
-            if word_count[word] >= min_count:
+            if word in word_index:
                 new_sentence.append(word_index[word])
             else:
-                new_sentence.append("nan")
-                word_index[word] = "nan"
+                new_sentence.append(str(count))
+                word_index[word] = str(count)
+                count += 1
         new_corpus.append(new_sentence)
     return new_corpus, word_index
 
 
-def build_embedding_matrix(word_index=None, embedding_index=None,
-                           max_feats=300, embedding_size=100,
-                           verbose=True):
-    """Mapping words in word_index into word vectors.
-    Refs:
-    [1] https://www.kaggle.com/christofhenkel/keras-baseline-lstm-attention-5-fold
-    [2] https://www.kaggle.com/c/jigsaw-unintended-bias-in-toxicity-classification/discussion/97471
-    """
-    embedding_mat = np.zeros((max_feats, embedding_size))
-    is_contain_nan = "nan" in embedding_index
+# def build_embedding_matrix(word_index=None, embedding_index=None,
+#                            max_feats=300, embedding_size=100,
+#                            verbose=True):
+#     """Mapping words in word_index into word vectors.
+#     Refs:
+#     [1] https://www.kaggle.com/christofhenkel/keras-baseline-lstm-attention-5-fold
+#     [2] https://www.kaggle.com/c/jigsaw-unintended-bias-in-toxicity-classification/discussion/97471
+#     """
+#     embedding_mat = np.zeros((max_feats, embedding_size))
+#     is_contain_nan = "nan" in embedding_index
 
-    for word, i in tqdm(word_index.items(), disable=not verbose):
-        if i >= max_feats:
-            continue
-        try:
-            embedding_vec = embedding_index[word]
-        except:
-            if is_contain_nan:
-                embedding_vec = embedding_index["nan"]
-            else:
-                embedding_vec = [0] * embedding_size
-        if embedding_vec is not None:
-            embedding_mat[i] = embedding_vec
-    return embedding_mat
+#     for word, i in tqdm(word_index.items(), disable=not verbose):
+#         if i >= max_feats:
+#             continue
+#         try:
+#             embedding_vec = embedding_index[word]
+#         except:
+#             if is_contain_nan:
+#                 embedding_vec = embedding_index["nan"]
+#             else:
+#                 embedding_vec = [0] * embedding_size
+#         if embedding_vec is not None:
+#             embedding_mat[i] = embedding_vec
+#     return embedding_mat
 
 
 if __name__ == "__main__":
@@ -358,6 +356,9 @@ if __name__ == "__main__":
         n_split_train, n_split_test, len(tmp[0][0]))
     send_msg_to_dingtalk(info_text=INFO_TEXT, is_send_msg=SENDING_TRAINING_INFO)
 
+    train_seq, test_seq = total_split_data[:n_split_train], total_split_data[n_split_train:]
+    train_seq, test_seq = np.array(train_seq), np.array(test_seq)
+
     train_group_id = total_split_feats[total_split_feats["behavior_id"].notnull()]["fragment_id"].values
     test_group_id = total_split_feats[total_split_feats["behavior_id"].isnull()]["fragment_id"].values
     split_labels = total_split_feats[total_split_feats["behavior_id"].notnull()]["behavior_id"].values
@@ -369,53 +370,72 @@ if __name__ == "__main__":
                                                     "acc_xg", "acc_yg", "acc_zg",
                                                     "mod", "modg"]) for item in total_split_data]
 
+    # Preprocessing of pos
+    # ------------------------
     with mp.Pool(processes=mp.cpu_count()) as p:
         tmp = list(tqdm(p.imap(seq_pos_to_corpus, total_split_data),
                         total=len(total_split_data)))
-    corpus_pos, word_index_pos = corpus_to_sequence(tmp)
+    corpus_pos, _ = corpus_to_sequence(tmp)
 
+    vocab_max_feats_pos = 60000
+    tokenizer = Tokenizer(num_words=vocab_max_feats_pos, oov_token="nan")
+    tokenizer.fit_on_texts(corpus_pos)
+    vocab_pos = tokenizer.word_index
+    corpus_pos = np.array(tokenizer.texts_to_sequences(corpus_pos))
+    train_corpus_pos, test_corpus_pos = corpus_pos[:n_split_train], corpus_pos[n_split_train:]
+
+    # Preprocessing of pos with acc
+    # ------------------------
     res = seq_acc_to_corpus(seq)
     with mp.Pool(processes=mp.cpu_count()) as p:
         tmp = list(tqdm(p.imap(seq_acc_to_corpus, total_split_data),
                         total=len(total_split_data)))
-    corpus_acc, word_index_acc = corpus_to_sequence(tmp)
+    corpus_acc, _ = corpus_to_sequence(tmp)
 
-    ##########################################################################
-    # Step 3: Embedding the corpus
-    # ------------------------
-    model_cbow_pos = compute_cbow_embedding(corpus=corpus_pos,
-                                            embedding_size=40,
-                                            window_size=3,
-                                            min_count=4,
-                                            iters=20,
-                                            is_save_model=False,
-                                            model_name="cbow_pos")
-    model_cbow_acc = compute_cbow_embedding(corpus=corpus_acc,
-                                            embedding_size=3,
-                                            window_size=3,
-                                            min_count=4,
-                                            iters=20,
-                                            is_save_model=False,
-                                            model_name="cbow_acc")
+    vocab_max_feats_acc = 200000
+    tokenizer = Tokenizer(num_words=vocab_max_feats_acc, oov_token="nan")
+    tokenizer.fit_on_texts(corpus_acc)
+    vocab_acc = tokenizer.word_index
+    corpus_acc = np.array(tokenizer.texts_to_sequences(corpus_acc))
+    train_corpus_acc, test_corpus_acc = corpus_acc[:n_split_train], corpus_acc[n_split_train:]
 
-    # model_sg_pos = compute_skip_gram_embedding(corpus=corpus_pos,
-    #                                             embedding_size=40,
-    #                                             window_size=3,
-    #                                             min_count=4,
-    #                                             iters=20,
-    #                                             is_save_model=False,
-    #                                             model_name="sg_pos")
-    # model_sg_acc = compute_skip_gram_embedding(corpus=corpus_acc,
-    #                                             embedding_size=3,
-    #                                             window_size=3,
-    #                                             min_count=4,
-    #                                             iters=20,
-    #                                             is_save_model=False,
-    #                                             model_name="sg_acc")
+    # ##########################################################################
+    # # Step 3: Embedding the corpus
+    # # ------------------------
+    # model_cbow_pos = compute_cbow_embedding(corpus=corpus_pos,
+    #                                         embedding_size=40,
+    #                                         window_size=3,
+    #                                         min_count=4,
+    #                                         iters=20,
+    #                                         is_save_model=False,
+    #                                         model_name="cbow_pos")
+    # model_cbow_acc = compute_cbow_embedding(corpus=corpus_acc,
+    #                                         embedding_size=40,
+    #                                         window_size=3,
+    #                                         min_count=4,
+    #                                         iters=20,
+    #                                         is_save_model=False,
+    #                                         model_name="cbow_acc")
+
+    # # # model_sg_pos = compute_skip_gram_embedding(corpus=corpus_pos,
+    # # #                                             embedding_size=40,
+    # # #                                             window_size=3,
+    # # #                                             min_count=4,
+    # # #                                             iters=20,
+    # # #                                             is_save_model=False,
+    # # #                                             model_name="sg_pos")
+    # # # model_sg_acc = compute_skip_gram_embedding(corpus=corpus_acc,
+    # # #                                             embedding_size=3,
+    # # #                                             window_size=3,
+    # # #                                             min_count=4,
+    # # #                                             iters=20,
+    # # #                                             is_save_model=False,
+    # # #                                             model_name="sg_acc")
     # model_pos, model_acc = model_cbow_pos, model_cbow_acc
 
     ##########################################################################
-    # Step 4: Build the embedding matrix
-    # ------------------------
-    
-
+    # # Step 4: Build the embedding matrix
+    # # ------------------------
+    # embedding_mat_pos = build_embedding_matrix(word_index=vocab_pos,
+    #                                            embedding_index=model_pos,
+    #                                            max_feats=vocab_max_feats_pos)

@@ -112,25 +112,6 @@ def preprocessing_seq(seq=None, length_interp=40):
     return seq
 
 
-def stretch(x, target_length=65):
-    l = int(target_length * (1 + (np.random.random() - 0.5) / 3))
-
-    y = np.zeros(x.shape)
-    for i in range(x.shape[1]):
-        y_tmp = resample(x[:, i], l)
-        if l < target_length:
-            y[:len(y_tmp), i] = y_tmp
-        else:
-            y[:, i] = y_tmp[:target_length]
-    return y
-
-
-def amplify(x, target_length=65):
-    alpha = (np.random.random() - 0.5)
-    factor = -alpha * x + (1 + alpha)
-    return x * factor
-
-
 def build_model(verbose=False, is_compile=True, **kwargs):
     dense_feat_size = kwargs.pop("dense_feat_size", 128)
     series_length = kwargs.pop("series_length", 61)
