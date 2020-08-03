@@ -120,7 +120,7 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     # -----------------
     layer_reshape = tf.expand_dims(layer_input_series, -1)
 
-    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (5, 5), (11, 5)]
+    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3)]
     layer_conv_2d_first = []
     for kernel_size in kernel_size_list:
         layer_feat_map = Conv2D(filters=64,
@@ -141,6 +141,10 @@ def build_model(verbose=False, is_compile=True, **kwargs):
         layer_avg_pool = AveragePooling2D(pool_size=(2, 2), padding="valid")(layer)
         layer_avg_pool = Dropout(0.22)(layer_avg_pool)
         layer_local_pooling_2d.append(layer_avg_pool)
+
+        layer_max_pool = MaxPooling2D(pool_size=(2, 2), padding="valid")(layer)
+        layer_max_pool = Dropout(0.22)(layer_max_pool)
+        layer_local_pooling_2d.append(layer_max_pool)
 
     layer_conv_2d_second = []
     for layer in layer_local_pooling_2d:

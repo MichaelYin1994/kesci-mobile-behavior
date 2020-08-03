@@ -208,7 +208,7 @@ if __name__ == "__main__":
     # Preparing and training models
     #########################################################################
     N_FOLDS = 5
-    BATCH_SIZE = 2048
+    BATCH_SIZE = 5000
     N_EPOCHS = 700
     IS_STRATIFIED = False
     SEED = 2090
@@ -248,10 +248,23 @@ if __name__ == "__main__":
         aug_seq_list, aug_label_list = [], []
         for i in range(n_samples):
             seq_aug = shift_seq(d_train[i].copy(),
-                                strides=10, 
-                                segment_length=40)
+                                strides=5,
+                                segment_length=10)
             aug_seq_list.extend(seq_aug)
             aug_label_list.extend([t_train[i]] * len(seq_aug))
+
+            seq_aug = shift_seq(d_train[i].copy(),
+                                strides=5,
+                                segment_length=20)
+            aug_seq_list.extend(seq_aug)
+            aug_label_list.extend([t_train[i]] * len(seq_aug))
+
+            seq_aug = shift_seq(d_train[i].copy(),
+                                strides=5,
+                                segment_length=30)
+            aug_seq_list.extend(seq_aug)
+            aug_label_list.extend([t_train[i]] * len(seq_aug))
+
         d_train_aug = np.vstack([d_train, np.array(aug_seq_list)])
         t_train_aug = np.vstack([t_train, np.array(aug_label_list)])
 

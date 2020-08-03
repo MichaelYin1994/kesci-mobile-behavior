@@ -23,12 +23,15 @@ sns.set(style="ticks", font_scale=1.2, palette='deep', color_codes=True)
 ###############################################################################
 ###############################################################################
 if __name__ == "__main__":
+    # oof_pred_names = ["57_nn_split_15_vf1_8058_vacc_8135_vc_8404_valid.csv",
+    #                   "56_nn_split_10_vf1_8033_vacc_8125_vc_8391_valid.csv"]
+    # y_pred_names = ["57_nn_split_15_vf1_8058_vacc_8135_vc_8404_pred.csv",
+    #                 "56_nn_split_10_vf1_8033_vacc_8125_vc_8391_pred.csv"]
+
     oof_pred_names = ["57_nn_split_15_vf1_8058_vacc_8135_vc_8404_valid.csv",
-                      "56_nn_split_10_vf1_8033_vacc_8125_vc_8391_valid.csv",
-                      "51_nn_split_10_vf1_8077_vacc_8154_vc_8421_valid.csv"]
+                      "56_nn_split_10_vf1_8033_vacc_8125_vc_8391_valid.csv"]
     y_pred_names = ["57_nn_split_15_vf1_8058_vacc_8135_vc_8404_pred.csv",
-                    "56_nn_split_10_vf1_8033_vacc_8125_vc_8391_pred.csv",
-                    "51_nn_split_10_vf1_8077_vacc_8154_vc_8421_pred.csv"]
+                    "56_nn_split_10_vf1_8033_vacc_8125_vc_8391_pred.csv"]
 
     oof_pred, y_pred = [], []
     for oof_pred_name, y_pred_name in zip(oof_pred_names, y_pred_names):
@@ -89,4 +92,4 @@ if __name__ == "__main__":
                                                                           n_folds=n_folds)
     clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
                             target_name="behavior_id", id_name="fragment_id",
-                            sub_str_field="lgb_stack_{}".format(n_folds), save_oof=False)
+                            sub_str_field="lgb_stack_{}".format(n_folds), save_oof=True)
