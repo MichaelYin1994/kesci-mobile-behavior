@@ -237,7 +237,9 @@ if __name__ == "__main__":
         str(datetime.now())[:-7]), is_send_msg=SENDING_TRAINING_INFO)
     print("==================================")
     targets_oht = to_categorical(labels)
-    for fold, (tra_id, val_id) in enumerate(folds.split(train_seq, targets_oht)):
+    for fold, (tra_id, val_id) in enumerate(folds.split(train_seq, labels)):
+        np.random.shuffle(tra_id)
+        np.random.shuffle(val_id)
         d_train, d_valid = train_seq[tra_id], train_seq[val_id]
         t_train, t_valid = targets_oht[tra_id], targets_oht[val_id]
 

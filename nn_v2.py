@@ -238,6 +238,8 @@ if __name__ == "__main__":
     print("==================================")
     targets_oht = to_categorical(labels)
     for fold, (tra_id, val_id) in enumerate(folds.split(train_seq, targets_oht)):
+        np.random.shuffle(tra_id)
+        np.random.shuffle(val_id)
         d_train, d_valid = train_seq[tra_id], train_seq[val_id]
         t_train, t_valid = targets_oht[tra_id], targets_oht[val_id]
 
@@ -247,7 +249,7 @@ if __name__ == "__main__":
         for i in range(n_samples):
             seq_aug = shift_seq(d_train[i].copy(),
                                 strides=5, 
-                                segment_length=20)
+                                segment_length=15)
             aug_seq_list.extend(seq_aug)
             aug_label_list.extend([t_train[i]] * len(seq_aug))
         d_train_aug = np.vstack([d_train, np.array(aug_seq_list)])
