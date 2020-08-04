@@ -120,7 +120,7 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     # -----------------
     layer_reshape = tf.expand_dims(layer_input_series, -1)
 
-    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3)]
+    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (5, 5), (11, 5)]
     layer_conv_2d_first = []
     for kernel_size in kernel_size_list:
         layer_feat_map = Conv2D(filters=64,
@@ -207,8 +207,8 @@ if __name__ == "__main__":
 
     # Preparing and training models
     #########################################################################
-    N_FOLDS = 5
-    BATCH_SIZE = 2048
+    N_FOLDS = 10
+    BATCH_SIZE = 6000
     N_EPOCHS = 700
     IS_STRATIFIED = False
     SEED = 2090
@@ -237,7 +237,7 @@ if __name__ == "__main__":
         str(datetime.now())[:-7]), is_send_msg=SENDING_TRAINING_INFO)
     print("==================================")
     targets_oht = to_categorical(labels)
-    for fold, (tra_id, val_id) in enumerate(folds.split(train_seq, targets_oht)):
+    for fold, (tra_id, val_id) in enumerate(folds.split(train_seq, labels)):
         np.random.shuffle(tra_id)
         np.random.shuffle(val_id)
         d_train, d_valid = train_seq[tra_id], train_seq[val_id]
@@ -248,10 +248,23 @@ if __name__ == "__main__":
         aug_seq_list, aug_label_list = [], []
         for i in range(n_samples):
             seq_aug = shift_seq(d_train[i].copy(),
-                                strides=5, 
-                                segment_length=15)
+                                strides=5,
+                                segment_length=10)
             aug_seq_list.extend(seq_aug)
             aug_label_list.extend([t_train[i]] * len(seq_aug))
+
+            seq_aug = shift_seq(d_train[i].copy(),
+                                strides=10,
+                                segment_length=20)
+            aug_seq_list.extend(seq_aug)
+            aug_label_list.extend([t_train[i]] * len(seq_aug))
+
+            seq_aug = shift_seq(d_train[i].copy(),
+                                strides=15,
+                                segment_length=30)
+            aug_seq_list.extend(seq_aug)
+            aug_label_list.extend([t_train[i]] * len(seq_aug))
+
         d_train_aug = np.vstack([d_train, np.array(aug_seq_list)])
         t_train_aug = np.vstack([t_train, np.array(aug_label_list)])
 

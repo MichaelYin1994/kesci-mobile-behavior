@@ -29,9 +29,11 @@ if __name__ == "__main__":
     #                 "51_nn_split_10_vf1_8077_vacc_8154_vc_8421_pred.csv"]
 
     oof_pred_names = ["68_nn_5_vf1_8022_vacc_8098_vc_8372_valid.csv",
-                      "69_lgb_stack_5_vf1_815_vacc_8221_vc_8479_valid.csv"]
+                      "75_nn_5_vf1_8084_vacc_8175_vc_8451_valid.csv",
+                      "77_nn_5_vf1_8073_vacc_816_vc_8431_valid.csv"]
     y_pred_names = ["68_nn_5_vf1_8022_vacc_8098_vc_8372_pred.csv",
-                    "69_lgb_stack_5_vf1_815_vacc_8221_vc_8479_pred.csv"]
+                    "75_nn_5_vf1_8084_vacc_8175_vc_8451_pred.csv",
+                    "77_nn_5_vf1_8073_vacc_816_vc_8431_pred.csv"]
 
     oof_pred, y_pred = [], []
     for oof_pred_name, y_pred_name in zip(oof_pred_names, y_pred_names):
@@ -58,38 +60,37 @@ if __name__ == "__main__":
         y_pred_df.drop(["fragment_id"], axis=1, inplace=True)
         y_pred.append(y_pred_df)
 
-    # oof_pred = pd.concat(oof_pred, axis=1)
-    # oof_pred["fragment_id"], oof_pred["behavior_id"] = oof_id_col, oof_target_col
-
-    # y_pred = pd.concat(y_pred, axis=1)
-    # y_pred["fragment_id"] = y_pred_id_col
-
-    # Averaging
-    oof_pred = np.mean([item.values for item in oof_pred], axis=0)
-    y_pred = np.mean([item.values for item in y_pred], axis=0)
-
-    oof_pred = pd.DataFrame(oof_pred)
-    y_pred = pd.DataFrame(y_pred)
+    oof_pred = pd.concat(oof_pred, axis=1)
     oof_pred["fragment_id"], oof_pred["behavior_id"] = oof_id_col, oof_target_col
+    y_pred = pd.concat(y_pred, axis=1)
     y_pred["fragment_id"] = y_pred_id_col
 
-    scores = np.zeros((5, 8))
-    scores = pd.DataFrame(scores, columns=["folds", "train_f1", "train_acc",
-                                            "valid_f1", "valid_acc",
-                                            "train_custom", "valid_custom",
-                                            "best_iters"])
+    # Averaging
+    # oof_pred = np.mean([item.values for item in oof_pred], axis=0)
+    # y_pred = np.mean([item.values for item in y_pred], axis=0)
+
+    # oof_pred = pd.DataFrame(oof_pred)
+    # y_pred = pd.DataFrame(y_pred)
+    # oof_pred["fragment_id"], oof_pred["behavior_id"] = oof_id_col, oof_target_col
+    # y_pred["fragment_id"] = y_pred_id_col
+
+    # scores = np.zeros((n_folds, 8))
+    # scores = pd.DataFrame(scores, columns=["folds", "train_f1", "train_acc",
+    #                                         "valid_f1", "valid_acc",
+    #                                         "train_custom", "valid_custom",
+    #                                         "best_iters"])
 
     # Model training
     ##########################################################################
-    n_folds = 10
-    # scores, importances, oof_pred, y_pred = lightgbm_classifier_training(train_df=oof_pred, 
-    #                                                                       test_df=y_pred,
-    #                                                                       id_name="fragment_id",
-    #                                                                       target_name="behavior_id",
-    #                                                                       stratified=True, 
-    #                                                                       shuffle=True,
-    #                                                                       n_classes=19,
-    #                                                                       n_folds=n_folds)
+    n_folds = 5
+    scores, importances, oof_pred, y_pred = lightgbm_classifier_training(train_df=oof_pred, 
+                                                                          test_df=y_pred,
+                                                                          id_name="fragment_id",
+                                                                          target_name="behavior_id",
+                                                                          stratified=True, 
+                                                                          shuffle=True,
+                                                                          n_classes=19,
+                                                                          n_folds=n_folds)
     clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
                             target_name="behavior_id", id_name="fragment_id",
-                            sub_str_field="lgb_stack_{}".format(n_folds), save_oof=True)
+                            sub_str_field="lgb_stack_{}".format(n_folds), save_oof=False)
