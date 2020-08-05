@@ -92,12 +92,10 @@ def preprocessing_seq(seq=None, length_interp=63):
     return seq
 
 
-def shift_seq(seq=None, strides=10, segment_length=40, padding=None):
+def shift_seq(seq=None, strides=10, segment_length=40):
     """Split the time serie seq according to the strides and segment_length."""
     if len(seq) < (segment_length + strides):
         raise ValueError("The length of seq is less than the segment_length + strides !")
-    if padding is not None and padding not in ["zero", "backward"]:
-        raise ValueError("Invalid padding method !")
 
     # Split the time series seq
     seq_split = []
@@ -187,7 +185,7 @@ if __name__ == "__main__":
     total_feats["behavior_id"] = labels + [np.nan] * len(test_data)
     total_feats["is_train"] = [True] * len(train_data) + [False] * len(test_data)
 
-    SENDING_TRAINING_INFO = False
+    SENDING_TRAINING_INFO = True
     send_msg_to_dingtalk("++++++++++++++++++++++++++++", SENDING_TRAINING_INFO)
     INFO_TEXT = "[BEGIN]#Training: {}, #Testing: {}, at: {}".format(
         len(total_feats.query("is_train == True")),
@@ -207,9 +205,9 @@ if __name__ == "__main__":
 
     # Preparing and training models
     #########################################################################
-    N_FOLDS = 10
+    N_FOLDS = 8
     BATCH_SIZE = 6000
-    N_EPOCHS = 700
+    N_EPOCHS = 400
     IS_STRATIFIED = False
     SEED = 2090
     PLOT_TRAINING = True
@@ -254,14 +252,20 @@ if __name__ == "__main__":
             aug_label_list.extend([t_train[i]] * len(seq_aug))
 
             seq_aug = shift_seq(d_train[i].copy(),
-                                strides=10,
+                                strides=5,
                                 segment_length=20)
             aug_seq_list.extend(seq_aug)
             aug_label_list.extend([t_train[i]] * len(seq_aug))
 
             seq_aug = shift_seq(d_train[i].copy(),
-                                strides=15,
+                                strides=10,
                                 segment_length=30)
+            aug_seq_list.extend(seq_aug)
+            aug_label_list.extend([t_train[i]] * len(seq_aug))
+
+            seq_aug = shift_seq(d_train[i].copy(),
+                                strides=10,
+                                segment_length=40)
             aug_seq_list.extend(seq_aug)
             aug_label_list.extend([t_train[i]] * len(seq_aug))
 

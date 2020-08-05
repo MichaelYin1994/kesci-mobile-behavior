@@ -23,7 +23,7 @@ from tensorflow.keras.layers import Bidirectional, GRU
 from tensorflow.keras.layers import Dropout, BatchNormalization, LayerNormalization
 from tensorflow.keras.layers import Dense, Embedding, LSTM, Bidirectional, Conv1D, Conv2D
 from tensorflow.keras.layers import Input, concatenate, Add, ReLU, Flatten
-from tensorflow.keras.layers import  GlobalAveragePooling1D, GlobalMaxPooling1D
+from tensorflow.keras.layers import  GlobalAveragePooling1D, GlobalMaxPooling1D, SpatialDropout1D
 from tensorflow.keras.layers import MaxPooling2D, AveragePooling2D, GlobalMaxPooling2D, GlobalAveragePooling2D, MaxPooling1D, AveragePooling1D
 from tensorflow.keras import regularizers, constraints, optimizers, layers
 from tensorflow.keras.models import Model
@@ -111,60 +111,109 @@ def shift_seq(seq=None, strides=10, segment_length=40, padding=None):
     return seq_split
 
 
+# def build_model(verbose=False, is_compile=True, **kwargs):
+#     series_length = kwargs.pop("series_length", 61)
+#     series_feat_size = kwargs.pop("series_feat_size", 8)
+#     layer_input_series = Input(shape=(series_length, series_feat_size), name="input_series")
+#
+#     # CONV_2d cross channel
+#     # -----------------
+#     layer_reshape = tf.expand_dims(layer_input_series, -1)
+#
+#     kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (5, 5), (11, 5), (17, 5)]
+#     layer_conv_2d_first = []
+#     for kernel_size in kernel_size_list:
+#         layer_feat_map = Conv2D(filters=64,
+#                                 kernel_size=kernel_size,
+#                                 activation='relu',
+#                                 padding='same')(layer_reshape)
+#         layer_residual = ReLU()(layer_feat_map)
+#         layer_residual = Conv2D(filters=64,
+#                                 kernel_size=(5, 3),
+#                                 activation='relu',
+#                                 padding='same')(layer_residual)
+#         layer_0 = Add()([layer_feat_map, layer_residual])
+#         layer_0 = ReLU()(layer_0)
+#         layer_conv_2d_first.append(layer_0)
+#
+#     layer_local_pooling_2d = []
+#     for layer in layer_conv_2d_first:
+#         layer_avg_pool = AveragePooling2D(pool_size=(2, 2), padding="valid")(layer)
+#         layer_avg_pool = Dropout(0.22)(layer_avg_pool)
+#         layer_local_pooling_2d.append(layer_avg_pool)
+#
+#     layer_conv_2d_second = []
+#     for layer in layer_local_pooling_2d:
+#         layer = Conv2D(filters=128,
+#                        kernel_size=(3, 3),
+#                        activation='relu',
+#                        padding='valid')(layer)
+#         layer = Dropout(0.22)(layer)
+#         layer_conv_2d_second.append(layer)
+#
+#     # Concatenating the pooling layer
+#     layer_global_pooling_2d = []
+#     for layer in layer_conv_2d_second:
+#         layer_global_pooling_2d.append(GlobalAveragePooling2D()(layer))
+#
+#     # Concat all
+#     # -----------------
+#     layer_pooling = concatenate(layer_global_pooling_2d)
+#
+#     # Output structure
+#     # -----------------
+#     layer_output = Dropout(0.22)(layer_pooling)
+#     layer_output = Dense(128, activation="relu")(layer_output)
+#     layer_output = Dense(19, activation='softmax')(layer_output)
+#
+#     model = Model([layer_input_series], layer_output)
+#     if verbose:
+#         model.summary()
+#     if is_compile:
+#         model.compile(loss="categorical_crossentropy",
+#                       optimizer=Adam(0.003, decay=1e-6), metrics=['acc'])
+#     return model
+
+
+def BLOCK(seq, filters, kernal_size):
+    cnn = Conv1D(filters, 1, padding='same', activation='relu')(seq)
+    cnn = LayerNormalization()(cnn)
+
+    cnn = Conv1D(filters, kernal_size, padding='same', activation='relu')(cnn)
+    cnn = LayerNormalization()(cnn)
+
+    cnn = Conv1D(filters, 1, padding='same', activation='relu')(cnn)
+    cnn = LayerNormalization()(cnn)
+
+    seq = Conv1D(filters, 1)(seq)
+    seq = Add()([seq, cnn])
+    return seq
+
+
+def BLOCK2(seq, filters=128, kernal_size=5):
+    seq = BLOCK(seq, filters, kernal_size)
+    seq = MaxPooling1D(2)(seq)
+    seq = SpatialDropout1D(0.3)(seq)
+    seq = BLOCK(seq, filters//2, kernal_size)
+    seq = GlobalAveragePooling1D()(seq)
+    return seq
+
+
 def build_model(verbose=False, is_compile=True, **kwargs):
+    """https://github.com/blueloveTH/xwbank2020_baseline_keras/blob/master/models.py"""
     series_length = kwargs.pop("series_length", 61)
     series_feat_size = kwargs.pop("series_feat_size", 8)
     layer_input_series = Input(shape=(series_length, series_feat_size), name="input_series")
 
-    # CONV_2d cross channel
-    # -----------------
-    layer_reshape = tf.expand_dims(layer_input_series, -1)
-
-    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (5, 5), (11, 5), (17, 5)]
-    layer_conv_2d_first = []
-    for kernel_size in kernel_size_list:
-        layer_feat_map = Conv2D(filters=64,
-                                kernel_size=kernel_size,
-                                activation='relu',
-                                padding='same')(layer_reshape)
-        layer_residual = ReLU()(layer_feat_map)
-        layer_residual = Conv2D(filters=64,
-                                kernel_size=(5, 3),
-                                activation='relu',
-                                padding='same')(layer_residual)
-        layer_0 = Add()([layer_feat_map, layer_residual])
-        layer_0 = ReLU()(layer_0)
-        layer_conv_2d_first.append(layer_0)
-
-    layer_local_pooling_2d = []
-    for layer in layer_conv_2d_first:
-        layer_avg_pool = AveragePooling2D(pool_size=(2, 2), padding="valid")(layer)
-        layer_avg_pool = Dropout(0.22)(layer_avg_pool)
-        layer_local_pooling_2d.append(layer_avg_pool)
-
-    layer_conv_2d_second = []
-    for layer in layer_local_pooling_2d:
-        layer = Conv2D(filters=128,
-                       kernel_size=(3, 3),
-                       activation='relu',
-                       padding='valid')(layer)
-        layer = Dropout(0.22)(layer)
-        layer_conv_2d_second.append(layer)
-
-    # Concatenating the pooling layer
-    layer_global_pooling_2d = []
-    for layer in layer_conv_2d_second:
-        layer_global_pooling_2d.append(GlobalAveragePooling2D()(layer))
-
-    # Concat all
-    # -----------------
-    layer_pooling = concatenate(layer_global_pooling_2d)
-
-    # Output structure
-    # -----------------
-    layer_output = Dropout(0.22)(layer_pooling)
-    layer_output = Dense(128, activation="relu")(layer_output)
-    layer_output = Dense(19, activation='softmax')(layer_output)
+    seq_3 = BLOCK2(layer_input_series, kernal_size=3)
+    seq_5 = BLOCK2(layer_input_series, kernal_size=5)
+    seq_7 = BLOCK2(layer_input_series, kernal_size=7)
+    seq = concatenate([seq_3, seq_5, seq_7])
+    seq = Dense(512, activation='relu')(seq)
+    seq = Dropout(0.3)(seq)
+    seq = Dense(128, activation='relu')(seq)
+    seq = Dropout(0.3)(seq)
+    layer_output = Dense(19, activation='softmax')(seq)
 
     model = Model([layer_input_series], layer_output)
     if verbose:
@@ -208,8 +257,8 @@ if __name__ == "__main__":
     # Preparing and training models
     #########################################################################
     N_FOLDS = 10
-    BATCH_SIZE = 4500
-    N_EPOCHS = 700
+    BATCH_SIZE = 7000
+    N_EPOCHS = 400
     IS_STRATIFIED = False
     SEED = 1994
     PLOT_TRAINING = True
@@ -254,13 +303,13 @@ if __name__ == "__main__":
             aug_label_list.extend([t_train[i]] * len(seq_aug))
 
             seq_aug = shift_seq(d_train[i].copy(),
-                                strides=10,
+                                strides=5,
                                 segment_length=20)
             aug_seq_list.extend(seq_aug)
             aug_label_list.extend([t_train[i]] * len(seq_aug))
 
             seq_aug = shift_seq(d_train[i].copy(),
-                                strides=15,
+                                strides=5,
                                 segment_length=30)
             aug_seq_list.extend(seq_aug)
             aug_label_list.extend([t_train[i]] * len(seq_aug))

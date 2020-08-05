@@ -12,10 +12,8 @@ import warnings
 import pandas as pd
 import numpy as np
 import seaborn as sns
-from tqdm import tqdm
-import multiprocessing as mp
-from sklearn.feature_extraction.text import TfidfVectorizer
-from utils import LoadSave, lightgbm_classifier_training, clf_pred_to_submission
+from sklearn.metrics import f1_score, accuracy_score
+from utils import LoadSave, lightgbm_classifier_training, clf_pred_to_submission, acc_combo
 
 np.random.seed(1080)
 warnings.filterwarnings('ignore')
@@ -29,9 +27,9 @@ if __name__ == "__main__":
     #                 "51_nn_split_10_vf1_8077_vacc_8154_vc_8421_pred.csv"]
 
     oof_pred_names = ["79_nn_10_vf1_8171_vacc_8282_vc_8531_valid.csv",
-                      "77_nn_5_vf1_8073_vacc_816_vc_8431_valid.csv"]
+                      "83_nn_10_vf1_8203_vacc_8294_vc_8546_valid.csv"]
     y_pred_names = ["79_nn_10_vf1_8171_vacc_8282_vc_8531_pred.csv",
-                    "77_nn_5_vf1_8073_vacc_816_vc_8431_pred.csv"]
+                    "83_nn_10_vf1_8203_vacc_8294_vc_8546_pred.csv"]
 
     oof_pred, y_pred = [], []
     for oof_pred_name, y_pred_name in zip(oof_pred_names, y_pred_names):
@@ -58,28 +56,41 @@ if __name__ == "__main__":
         y_pred_df.drop(["fragment_id"], axis=1, inplace=True)
         y_pred.append(y_pred_df)
 
-    oof_pred = pd.concat(oof_pred, axis=1)
-    oof_pred["fragment_id"], oof_pred["behavior_id"] = oof_id_col, oof_target_col
-    y_pred = pd.concat(y_pred, axis=1)
-    y_pred["fragment_id"] = y_pred_id_col
-
-    # Averaging
+    # Averaging:
+    #------------------
     # oof_pred = np.mean([item.values for item in oof_pred], axis=0)
     # y_pred = np.mean([item.values for item in y_pred], axis=0)
 
-    # oof_pred = pd.DataFrame(oof_pred)
-    # y_pred = pd.DataFrame(y_pred)
-    # oof_pred["fragment_id"], oof_pred["behavior_id"] = oof_id_col, oof_target_col
-    # y_pred["fragment_id"] = y_pred_id_col
+    # valid_label = np.argmax(oof_pred, axis=1).reshape((-1, 1))
+    # valid_custom = np.apply_along_axis(
+    #     acc_combo, 1, np.hstack((oof_target_col.reshape((-1, 1)), valid_label))).mean()
+    # valid_f1 = f1_score(
+    #     oof_target_col.reshape((-1, 1)), valid_label, average="macro")
+    # valid_acc = accuracy_score(oof_target_col.reshape((-1, 1)),
+    #                            valid_label)
 
+    # n_folds = 777
     # scores = np.zeros((n_folds, 8))
     # scores = pd.DataFrame(scores, columns=["folds", "train_f1", "train_acc",
     #                                         "valid_f1", "valid_acc",
     #                                         "train_custom", "valid_custom",
     #                                         "best_iters"])
+    # scores["valid_custom"] = valid_custom
+    # scores["valid_acc"] = valid_acc
+    # scores["valid_f1"] = valid_f1
+    # scores["folds"] = n_folds
 
-    # Model training
-    ##########################################################################
+    # y_pred = pd.DataFrame(
+    #     y_pred, columns=["y_pred_{}".format(i) for i in range(19)])
+    # y_pred["fragment_id"] = y_pred_id_col
+
+    # LGB Stacking:
+    #------------------
+    oof_pred = pd.concat(oof_pred, axis=1)
+    oof_pred["fragment_id"], oof_pred["behavior_id"] = oof_id_col, oof_target_col
+    y_pred = pd.concat(y_pred, axis=1)
+    y_pred["fragment_id"] = y_pred_id_col
+
     n_folds = 5
     scores, importances, oof_pred, y_pred = lightgbm_classifier_training(train_df=oof_pred, 
                                                                           test_df=y_pred,
@@ -89,6 +100,7 @@ if __name__ == "__main__":
                                                                           shuffle=True,
                                                                           n_classes=19,
                                                                           n_folds=n_folds)
+
     clf_pred_to_submission(y_valid=oof_pred, y_pred=y_pred, score=scores,
                             target_name="behavior_id", id_name="fragment_id",
                             sub_str_field="lgb_stack_{}".format(n_folds), save_oof=False)
