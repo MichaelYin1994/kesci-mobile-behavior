@@ -120,7 +120,7 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     # -----------------
     layer_reshape = tf.expand_dims(layer_input_series, -1)
 
-    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (5, 5), (11, 5)]
+    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (5, 5), (11, 5), (17, 5)]
     layer_conv_2d_first = []
     for kernel_size in kernel_size_list:
         layer_feat_map = Conv2D(filters=64,
@@ -207,11 +207,11 @@ if __name__ == "__main__":
 
     # Preparing and training models
     #########################################################################
-    N_FOLDS = 5
-    BATCH_SIZE = 6000
+    N_FOLDS = 10
+    BATCH_SIZE = 4500
     N_EPOCHS = 700
     IS_STRATIFIED = False
-    SEED = 2090
+    SEED = 1994
     PLOT_TRAINING = True
 
     if IS_STRATIFIED:
@@ -262,6 +262,12 @@ if __name__ == "__main__":
             seq_aug = shift_seq(d_train[i].copy(),
                                 strides=15,
                                 segment_length=30)
+            aug_seq_list.extend(seq_aug)
+            aug_label_list.extend([t_train[i]] * len(seq_aug))
+
+            seq_aug = shift_seq(d_train[i].copy(),
+                                strides=5,
+                                segment_length=40)
             aug_seq_list.extend(seq_aug)
             aug_label_list.extend([t_train[i]] * len(seq_aug))
 

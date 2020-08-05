@@ -28,11 +28,9 @@ if __name__ == "__main__":
     # y_pred_names = ["56_nn_split_10_vf1_8033_vacc_8125_vc_8391_pred.csv",
     #                 "51_nn_split_10_vf1_8077_vacc_8154_vc_8421_pred.csv"]
 
-    oof_pred_names = ["68_nn_5_vf1_8022_vacc_8098_vc_8372_valid.csv",
-                      "75_nn_5_vf1_8084_vacc_8175_vc_8451_valid.csv",
+    oof_pred_names = ["79_nn_10_vf1_8171_vacc_8282_vc_8531_valid.csv",
                       "77_nn_5_vf1_8073_vacc_816_vc_8431_valid.csv"]
-    y_pred_names = ["68_nn_5_vf1_8022_vacc_8098_vc_8372_pred.csv",
-                    "75_nn_5_vf1_8084_vacc_8175_vc_8451_pred.csv",
+    y_pred_names = ["79_nn_10_vf1_8171_vacc_8282_vc_8531_pred.csv",
                     "77_nn_5_vf1_8073_vacc_816_vc_8431_pred.csv"]
 
     oof_pred, y_pred = [], []
