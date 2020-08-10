@@ -209,7 +209,7 @@ if __name__ == "__main__":
     # Preparing and training models
     #########################################################################
     N_FOLDS = 10
-    BATCH_SIZE = 10000
+    BATCH_SIZE = 7000
     N_EPOCHS = 400
     IS_STRATIFIED = False
     SEED = 1989

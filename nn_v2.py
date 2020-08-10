@@ -185,14 +185,13 @@ if __name__ == "__main__":
     total_feats["behavior_id"] = labels + [np.nan] * len(test_data)
     total_feats["is_train"] = [True] * len(train_data) + [False] * len(test_data)
 
-    SENDING_TRAINING_INFO = True
+    SENDING_TRAINING_INFO = False
     send_msg_to_dingtalk("++++++++++++++++++++++++++++", SENDING_TRAINING_INFO)
     INFO_TEXT = "[BEGIN]#Training: {}, #Testing: {}, at: {}".format(
         len(total_feats.query("is_train == True")),
         len(total_feats.query("is_train == False")),
         str(datetime.now())[:-7])
     send_msg_to_dingtalk(info_text=INFO_TEXT, is_send_msg=SENDING_TRAINING_INFO)
-
     ##########################################################################
     # Step 1: Interpolate all the sequence to the fixed length
     # ------------------------
@@ -207,7 +206,7 @@ if __name__ == "__main__":
     #########################################################################
     N_FOLDS = 10
     BATCH_SIZE = 6000
-    N_EPOCHS = 400
+    N_EPOCHS = 700
     IS_STRATIFIED = False
     SEED = 2090
     PLOT_TRAINING = True
@@ -252,20 +251,14 @@ if __name__ == "__main__":
             aug_label_list.extend([t_train[i]] * len(seq_aug))
 
             seq_aug = shift_seq(d_train[i].copy(),
-                                strides=5,
+                                strides=10,
                                 segment_length=20)
             aug_seq_list.extend(seq_aug)
             aug_label_list.extend([t_train[i]] * len(seq_aug))
 
             seq_aug = shift_seq(d_train[i].copy(),
-                                strides=10,
+                                strides=15,
                                 segment_length=30)
-            aug_seq_list.extend(seq_aug)
-            aug_label_list.extend([t_train[i]] * len(seq_aug))
-
-            seq_aug = shift_seq(d_train[i].copy(),
-                                strides=10,
-                                segment_length=40)
             aug_seq_list.extend(seq_aug)
             aug_label_list.extend([t_train[i]] * len(seq_aug))
 
