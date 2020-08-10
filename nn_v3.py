@@ -23,7 +23,7 @@ from tensorflow.keras.layers import Bidirectional, GRU
 from tensorflow.keras.layers import Dropout, BatchNormalization, LayerNormalization
 from tensorflow.keras.layers import Dense, Embedding, LSTM, Bidirectional, Conv1D, Conv2D
 from tensorflow.keras.layers import Input, concatenate, Add, ReLU, Flatten
-from tensorflow.keras.layers import  GlobalAveragePooling1D, GlobalMaxPooling1D
+from tensorflow.keras.layers import  GlobalAveragePooling1D, GlobalMaxPooling1D, SpatialDropout1D
 from tensorflow.keras.layers import MaxPooling2D, AveragePooling2D, GlobalMaxPooling2D, GlobalAveragePooling2D, MaxPooling1D, AveragePooling1D
 from tensorflow.keras import regularizers, constraints, optimizers, layers
 from tensorflow.keras.models import Model
@@ -92,10 +92,12 @@ def preprocessing_seq(seq=None, length_interp=63):
     return seq
 
 
-def shift_seq(seq=None, strides=10, segment_length=40):
+def shift_seq(seq=None, strides=10, segment_length=40, padding=None):
     """Split the time serie seq according to the strides and segment_length."""
     if len(seq) < (segment_length + strides):
         raise ValueError("The length of seq is less than the segment_length + strides !")
+    if padding is not None and padding not in ["zero", "backward"]:
+        raise ValueError("Invalid padding method !")
 
     # Split the time series seq
     seq_split = []
@@ -109,60 +111,61 @@ def shift_seq(seq=None, strides=10, segment_length=40):
     return seq_split
 
 
+def block_reset_conv1d(seq, filters, kernal_size):
+    """Resnet-like CONV-1D block."""
+    x = Conv1D(filters, 1, padding='same', activation='relu')(seq)
+    x = LayerNormalization()(x)
+
+    x = Conv1D(filters, kernal_size, padding='same', activation='relu')(x)
+    x = LayerNormalization()(x)
+
+    x = Conv1D(filters, 1, padding='same', activation='relu')(x)
+    x = LayerNormalization()(x)
+
+    seq = Conv1D(filters, 1)(seq)
+    seq = Add()([seq, x])
+    return seq
+
+
+def block_cascade(seq, filters=128, kernal_size=5):
+    """Cascading CONV-1D blocks."""
+    # STEP 1: Resnet-like CONV-1D block.
+    seq = block_reset_conv1d(seq, filters, kernal_size)
+
+    # STEP 2: CONV-1D Pooling.
+    seq = MaxPooling1D(2)(seq)
+    seq = SpatialDropout1D(0.3)(seq)
+
+    # STEP 3: Resnet-like CONV-1D block.
+    seq = block_reset_conv1d(seq, filters//2, kernal_size)
+    seq = GlobalAveragePooling1D()(seq)
+    return seq
+
+
 def build_model(verbose=False, is_compile=True, **kwargs):
+    """
+    CONV 1D based neural network.
+
+    References:
+    --------------
+    [1] https://github.com/blueloveTH/xwbank2020_baseline_keras/blob/master/models.py"""
+
+    # Input layers
     series_length = kwargs.pop("series_length", 61)
     series_feat_size = kwargs.pop("series_feat_size", 8)
     layer_input_series = Input(shape=(series_length, series_feat_size), name="input_series")
 
-    # CONV_2d cross channel
-    # -----------------
-    layer_reshape = tf.expand_dims(layer_input_series, -1)
+    # NN structure
+    seq_0 = block_cascade(layer_input_series, kernal_size=3)
+    seq_1 = block_cascade(layer_input_series, kernal_size=5)
+    seq_2 = block_cascade(layer_input_series, kernal_size=7)
+    seq = concatenate([seq_0, seq_1, seq_2])
 
-    kernel_size_list = [(3, 3), (5, 3), (7, 3), (9, 3), (5, 5), (11, 5)]
-    layer_conv_2d_first = []
-    for kernel_size in kernel_size_list:
-        layer_feat_map = Conv2D(filters=64,
-                                kernel_size=kernel_size,
-                                activation='relu',
-                                padding='same')(layer_reshape)
-        layer_residual = ReLU()(layer_feat_map)
-        layer_residual = Conv2D(filters=64,
-                                kernel_size=(5, 3),
-                                activation='relu',
-                                padding='same')(layer_residual)
-        layer_0 = Add()([layer_feat_map, layer_residual])
-        layer_0 = ReLU()(layer_0)
-        layer_conv_2d_first.append(layer_0)
-
-    layer_local_pooling_2d = []
-    for layer in layer_conv_2d_first:
-        layer_avg_pool = AveragePooling2D(pool_size=(2, 2), padding="valid")(layer)
-        layer_avg_pool = Dropout(0.22)(layer_avg_pool)
-        layer_local_pooling_2d.append(layer_avg_pool)
-
-    layer_conv_2d_second = []
-    for layer in layer_local_pooling_2d:
-        layer = Conv2D(filters=128,
-                       kernel_size=(3, 3),
-                       activation='relu',
-                       padding='valid')(layer)
-        layer = Dropout(0.22)(layer)
-        layer_conv_2d_second.append(layer)
-
-    # Concatenating the pooling layer
-    layer_global_pooling_2d = []
-    for layer in layer_conv_2d_second:
-        layer_global_pooling_2d.append(GlobalAveragePooling2D()(layer))
-
-    # Concat all
-    # -----------------
-    layer_pooling = concatenate(layer_global_pooling_2d)
-
-    # Output structure
-    # -----------------
-    layer_output = Dropout(0.22)(layer_pooling)
-    layer_output = Dense(128, activation="relu")(layer_output)
-    layer_output = Dense(19, activation='softmax')(layer_output)
+    seq = Dense(512, activation='relu')(seq)
+    seq = Dropout(0.3)(seq)
+    seq = Dense(128, activation='relu')(seq)
+    seq = Dropout(0.3)(seq)
+    layer_output = Dense(19, activation='softmax')(seq)
 
     model = Model([layer_input_series], layer_output)
     if verbose:
@@ -185,7 +188,7 @@ if __name__ == "__main__":
     total_feats["behavior_id"] = labels + [np.nan] * len(test_data)
     total_feats["is_train"] = [True] * len(train_data) + [False] * len(test_data)
 
-    SENDING_TRAINING_INFO = True
+    SENDING_TRAINING_INFO = False
     send_msg_to_dingtalk("++++++++++++++++++++++++++++", SENDING_TRAINING_INFO)
     INFO_TEXT = "[BEGIN]#Training: {}, #Testing: {}, at: {}".format(
         len(total_feats.query("is_train == True")),
@@ -206,10 +209,10 @@ if __name__ == "__main__":
     # Preparing and training models
     #########################################################################
     N_FOLDS = 10
-    BATCH_SIZE = 6000
+    BATCH_SIZE = 10000
     N_EPOCHS = 400
     IS_STRATIFIED = False
-    SEED = 2090
+    SEED = 1989
     PLOT_TRAINING = True
 
     if IS_STRATIFIED:
@@ -258,13 +261,13 @@ if __name__ == "__main__":
             aug_label_list.extend([t_train[i]] * len(seq_aug))
 
             seq_aug = shift_seq(d_train[i].copy(),
-                                strides=10,
+                                strides=5,
                                 segment_length=30)
             aug_seq_list.extend(seq_aug)
             aug_label_list.extend([t_train[i]] * len(seq_aug))
 
             seq_aug = shift_seq(d_train[i].copy(),
-                                strides=10,
+                                strides=5,
                                 segment_length=40)
             aug_seq_list.extend(seq_aug)
             aug_label_list.extend([t_train[i]] * len(seq_aug))
@@ -303,11 +306,11 @@ if __name__ == "__main__":
 
         # Training evaluation
         train_pred_proba = model.predict(x=[d_train],
-                                          batch_size=BATCH_SIZE)
+                                         batch_size=BATCH_SIZE)
         valid_pred_proba = model.predict(x=[d_valid],
-                                          batch_size=BATCH_SIZE)
+                                         batch_size=BATCH_SIZE)
         y_pred_proba = model.predict(x=[test_seq],
-                                      batch_size=BATCH_SIZE)
+                                     batch_size=BATCH_SIZE)
         y_pred += y_pred_proba / N_FOLDS
 
         oof_pred[val_id] = valid_pred_proba
@@ -324,7 +327,7 @@ if __name__ == "__main__":
         valid_f1 = f1_score(
             t_valid_label, valid_pred_label, average="macro")
         valid_acc = accuracy_score(t_valid_label,
-                                    valid_pred_label)
+                                   valid_pred_label)
 
         train_custom = np.apply_along_axis(
             acc_combo, 1, np.hstack((t_train_label, train_pred_label))).mean()
@@ -340,16 +343,16 @@ if __name__ == "__main__":
             fold+1, N_FOLDS, valid_f1, valid_acc, valid_custom)
         send_msg_to_dingtalk(INFO_TEXT, is_send_msg=SENDING_TRAINING_INFO)
         send_msg_to_dingtalk(classification_report(t_valid_label, valid_pred_label),
-                              is_send_msg=SENDING_TRAINING_INFO)
+                             is_send_msg=SENDING_TRAINING_INFO)
 
     oof_pred_label = np.argmax(oof_pred, axis=1).reshape((-1, 1))
     total_f1 = f1_score(np.array(labels).reshape(-1, 1),
                         oof_pred_label.reshape((-1, 1)), average="macro")
     total_acc = accuracy_score(np.array(labels).reshape(-1, 1),
-                                oof_pred_label.reshape((-1, 1)))
+                               oof_pred_label.reshape((-1, 1)))
     total_custom = np.apply_along_axis(
-            acc_combo, 1, np.hstack((np.array(labels).reshape((-1, 1)),
-                                      oof_pred_label.reshape((-1, 1))))).mean()
+        acc_combo, 1, np.hstack((np.array(labels).reshape((-1, 1)),
+                                 oof_pred_label.reshape((-1, 1))))).mean()
 
     send_msg_to_dingtalk(classification_report(np.array(labels).reshape(-1, 1), oof_pred_label),
                           is_send_msg=SENDING_TRAINING_INFO)
@@ -363,8 +366,8 @@ if __name__ == "__main__":
 
     # Saving prediction results
     scores = pd.DataFrame(scores, columns=["folds", "train_f1", "train_acc",
-                                            "valid_f1", "valid_acc",
-                                            "train_custom", "valid_custom"])
+                                           "valid_f1", "valid_acc",
+                                           "train_custom", "valid_custom"])
     y_pred = pd.DataFrame(
         y_pred, columns=["y_pred_{}".format(i) for i in range(19)])
     y_pred["fragment_id"] = total_feats.query("is_train == False")["fragment_id"].values
