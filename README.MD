@@ -51,6 +51,7 @@
 1. 若神经网络运行出现Out Of Memory错误，请降低211行左右的BATCH_SIZE关键字。
 2. 在三组nn训练完之后，需要手动更新stacking_oof.py中的三组oof的路径，读取其结果进行平均。
 3. 神经网络的训练可以3张卡在Pycharm IDE用Docker同时进行，需要修改第49行左右GPU设备的ID号。
+4. 附带项目github地址: https://github.com/MichaelYin1994/kesci-mobile-behavior
 
 ---
 ### References
