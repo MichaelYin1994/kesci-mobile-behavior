@@ -2,7 +2,7 @@
 
 ---
 ### 队伍简介
-队名：我们的队伍向太阳，队长：鱼丸粗面(zhuoyin94@163.com)。初赛A榜榜上排名第14，线上分数0.80590476；初赛B榜榜上排名第35（去小号后真实排名未知），线上分数0.78702646。（20200711开始）
+队名：我们的队伍向太阳，队长：鱼丸粗面(zhuoyin94@163.com)。初赛A榜榜上排名第14，线上分数0.80590476；初赛B榜榜上排名第35（更新，去小号后排名第16），线上分数0.78702646。（20200711开始）
 
 ---
 ### 系统环境与主要依赖packages
@@ -71,3 +71,6 @@
 
 [8] He K, Zhang X, Ren S, et al. Deep residual learning for image recognition[C]//Proceedings of the IEEE conference on computer vision and pattern recognition. 2016: 770-778.
 
+[9] （腾讯张戎，时序分类网络Review）https://zhuanlan.zhihu.com/p/83130649
+
+[10] （时序数据增强策略代码）https://github.com/terryum/Data-Augmentation-For-Wearable-Sensor-Data
