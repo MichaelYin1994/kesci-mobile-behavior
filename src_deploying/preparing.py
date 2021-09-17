@@ -11,9 +11,7 @@ Separate the raw training data into 2 parts:
 - Inference part
 '''
 
-import multiprocessing as mp
 import os
-from posix import listdir
 
 import numpy as np
 import pandas as pd
@@ -77,6 +75,7 @@ if __name__ == "__main__":
     unqiue_ts_ids = train_df['fragment_id'].unique()
 
     # Shuffle the index
+    # --------
     np.random.shuffle(unqiue_ts_ids)
     train_ids = [
         i for i in unqiue_ts_ids[:int(len(unqiue_ts_ids) * RATIO_FOR_TRAIN)]
@@ -86,6 +85,7 @@ if __name__ == "__main__":
     ]
 
     # Gather the data
+    # --------
     train_data_list = []
     for i in tqdm(train_ids):
         tmp_data = train_df.query(
@@ -106,6 +106,7 @@ if __name__ == "__main__":
     # **********************
 
     # Save training data
+    # --------
     train_pack_list = [
         [os.path.join(
             DIR_NAME, 'train_separated_csv', 'ts_{}.csv'.format(int(f_id))
@@ -116,6 +117,7 @@ if __name__ == "__main__":
         save_to_csv(item)
 
     # Save testing data
+    # --------
     test_pack_list = [
         [os.path.join(
             DIR_NAME, 'test_separated_csv', 'ts_{}.csv'.format(int(f_id))
