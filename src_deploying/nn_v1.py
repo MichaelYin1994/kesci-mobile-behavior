@@ -17,11 +17,13 @@ from datetime import datetime
 
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.core.shape_base import block
 import pandas as pd
 import tensorflow as tf
 import tensorflow.keras.backend as K
 from scipy import signal
 from sklearn.model_selection import KFold
+from tensorflow.python.keras.layers.normalization import LayerNormalization
 from tqdm import tqdm
 
 from dingtalk_remote_monitor import RemoteMonitorDingTalk
@@ -82,8 +84,8 @@ def load_preprocess_single_ts(stage, target_length):
         seq = df.drop(['fragment_id', 'behavior_id', 'time_point'], axis=1).values
 
         label = df['behavior_id'].values[0]
-        oht_label = np.zeros((1, 19), dtype=np.int32)
-        oht_label[0, label] = 1
+        oht_label = np.zeros((19, ), dtype=np.int32)
+        oht_label[label] = 1
 
         if len(seq) != target_length:
             interp_seq = np.zeros((target_length, seq.shape[1]))
@@ -109,16 +111,133 @@ def load_preprocess_single_ts(stage, target_length):
 
         return seq, oht_label
 
+    # Transform to the tf_fcn object
     tf_fcn = lambda f_path: tf.py_function(
         fcn, [f_path], (tf.float32, tf.int32)
     )
 
-    return tf_fcn
+    def set_shape(full_name):
+        seq, oht_label = tf_fcn(full_name)
+
+        seq.set_shape((target_length, 8))
+        oht_label.set_shape((19, ))
+
+        return seq, oht_label
+
+    return set_shape
 
 
-def build_model():
-    pass
+def resnet_block_conv1d(seq, n_filters, kernel_size):
+    '''ResNet-like CONV-1D block.'''
+    # Increase dimension
+    x = tf.keras.layers.Conv1D(
+        filters=n_filters, kernel_size=1, padding='same', activation='relu'
+    )(seq)
+    x = tf.keras.layers.LayerNormalization()(x)
 
+    # Feature extraction
+    x = tf.keras.layers.Conv1D(
+        filters=n_filters, kernel_size=kernel_size, padding='same', activation='relu'
+    )(seq)
+    x = tf.keras.layers.LayerNormalization()(x)
+
+    # Increase dimension
+    x = tf.keras.layers.Conv1D(
+        filters=int(n_filters * 4), kernel_size=kernel_size,
+        padding='same', activation='relu'
+    )(seq)
+    x = tf.keras.layers.LayerNormalization()(x)
+
+    # Residual connection
+    x = tf.keras.layers.Add()([seq, x])
+
+    return x
+
+
+def block_cascade(x, kernel_size=5):
+    '''Cascade the ResNet-like Conv-1D blocks'''
+    # STEP 1: Block cascade
+    x = tf.keras.layers.Conv1D(
+        filters=128, kernel_size=1, padding='same', activation='relu'
+    )(x)
+    x = tf.keras.layers.LayerNormalization()(x)
+    x = resnet_block_conv1d(x, 32, kernel_size)
+
+    x = tf.keras.layers.Conv1D(
+        filters=256, kernel_size=1, padding='same', activation='relu'
+    )(x)
+    x = tf.keras.layers.LayerNormalization()(x)
+    x = resnet_block_conv1d(x, 64, kernel_size)
+
+    # STEP 2: Pooling
+    x = tf.keras.layers.GlobalAveragePooling1D()(x)
+
+    return x
+
+
+def build_model(verbose=False, is_compile=True, **kwargs):
+    '''
+    Build and complie a Conv-1D based ResNet-like neural network.
+
+    @References:
+    --------------
+    [1] https://github.com/blueloveTH/xwbank2020_baseline_keras/blob/master/models.py
+    [2] He, Kaiming, et al. "Deep residual learning for image recognition." Proceedings of the IEEE conference on computer vision and pattern recognition. 2016.
+    [3] He, Kaiming, et al. "Identity mappings in deep residual networks." European conference on computer vision. Springer, Cham, 2016.
+    [4] Zhang, Ye, and Byron Wallace. "A sensitivity analysis of (and practitioners' guide to) convolutional neural networks for sentence classification." arXiv preprint arXiv:1510.03820 (2015).
+
+    @Return:
+    --------------
+    Keras model object
+    '''
+
+    # Input parameters
+    # --------
+    ts_length = kwargs.pop('ts_length', 61)
+    ts_dim = kwargs.pop('ts_dim', 8)
+    learning_rate = kwargs.pop('learning_rate', 0.0001)
+
+    layer_ts_input = tf.keras.layers.Input(
+        shape=(ts_length, ts_dim), name='layer_input'
+    )
+
+    # Structure
+    # --------
+    block_output_list = []
+    for kernel_size in [3, 5, 7]:
+        block_output_list.append(
+            block_cascade(
+                layer_ts_input, kernel_size=kernel_size
+            )
+        )
+
+    block_output = tf.keras.layers.concatenate(
+        block_output_list
+    )
+
+    x = tf.keras.layers.Dense(512, activation='relu')(block_output)
+    x = tf.keras.layers.Dropout(0.3)(x)
+
+    x = tf.keras.layers.Dense(128, activation='relu')(x)
+    x = tf.keras.layers.Dropout(0.3)(x)
+
+    layer_output = tf.keras.layers.Dense(19, activation='softmax')(x)
+
+    # Build and complie model
+    # --------
+    model = tf.keras.models.Model(
+        [layer_ts_input], layer_output
+    )
+
+    if verbose:
+        model.summary()
+    if is_compile:
+        model.compile(
+            loss='categorical_crossentropy',
+            optimizer=tf.keras.optimizers.Adam(learning_rate), metrics=['acc']
+        )
+
+    return model
 
 if __name__ == '__main__':
     # Global parameters
@@ -136,12 +255,12 @@ if __name__ == '__main__':
     MODEL_LR = 0.0003
     MODEL_LABEL_SMOOTHING = 0
 
-    IS_RANDOM_VISUALIZING = False
+    IS_RANDOM_VISUALIZING = True
     IS_SEND_MSG_TO_DINGTALK = False
 
     # Training preparing
     # **********************
-    total_file_name_list = os.listdir(TRAIN_PATH_NAME)[:128]
+    total_file_name_list = os.listdir(TRAIN_PATH_NAME)
     total_file_name_list = [
         os.path.join(TRAIN_PATH_NAME, item) for item in total_file_name_list
     ]
@@ -244,10 +363,26 @@ if __name__ == '__main__':
             load_process_valid_ts, num_parallel_calls=mp.cpu_count()
         )
 
+        train_ts_ds = train_ts_ds.batch(BATCH_SIZE)
+        train_ts_ds = train_ts_ds.prefetch(buffer_size=int(BATCH_SIZE * 8))
+        valid_ts_ds = valid_ts_ds.batch(BATCH_SIZE)
+        valid_ts_ds = valid_ts_ds.prefetch(buffer_size=int(BATCH_SIZE * 8))
+
         # build & train model
         # --------
-        model = build_model()
+        model = build_model(
+            ts_length=SEGMENT_LENGTH,
+            ts_dim=8,
+            learning_rate=MODEL_LR
+        )
 
+        history = model.fit(
+            train_ts_ds,
+            epochs=NUM_EPOCHS,
+            validation_data=valid_ts_ds,
+            callbacks=callbacks,
+            verbose=1
+        )
 
         # Evaulate the preformance
         # --------
