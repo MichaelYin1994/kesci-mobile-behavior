@@ -23,7 +23,6 @@ import tensorflow as tf
 import tensorflow.keras.backend as K
 from scipy import signal
 from sklearn.model_selection import KFold
-from tensorflow.python.keras.layers.normalization import LayerNormalization
 from tqdm import tqdm
 
 from dingtalk_remote_monitor import RemoteMonitorDingTalk
@@ -358,10 +357,10 @@ if __name__ == '__main__':
 
         train_ts_ds = train_path_ds.map(
             load_process_train_ts, num_parallel_calls=mp.cpu_count()
-        )
+        ).cache()
         valid_ts_ds = train_path_ds.map(
             load_process_valid_ts, num_parallel_calls=mp.cpu_count()
-        )
+        ).cache()
 
         train_ts_ds = train_ts_ds.batch(BATCH_SIZE)
         train_ts_ds = train_ts_ds.prefetch(buffer_size=int(BATCH_SIZE * 8))
