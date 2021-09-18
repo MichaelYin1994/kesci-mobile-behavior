@@ -24,6 +24,9 @@ np.random.seed(GLOBAL_RANDOM_SEED)
 def save_to_csv(pack):
     '''Save a pandas DataFrame as a *.csv file.'''
     full_path_name, df = pack
+    full_path_name = '{}_label_{}.csv'.format(
+        full_path_name, int(df['behavior_id'].values[0])
+    )
 
     df.to_csv(
         full_path_name, index=False
@@ -109,7 +112,7 @@ if __name__ == "__main__":
     # --------
     train_pack_list = [
         [os.path.join(
-            DIR_NAME, 'train_separated_csv', 'ts_{}.csv'.format(int(f_id))
+            DIR_NAME, 'train_separated_csv', 'ts_{}'.format(int(f_id))
         ), train_data_list[i]
         ] for i, f_id in enumerate(train_ids)
     ]
@@ -120,7 +123,7 @@ if __name__ == "__main__":
     # --------
     test_pack_list = [
         [os.path.join(
-            DIR_NAME, 'test_separated_csv', 'ts_{}.csv'.format(int(f_id))
+            DIR_NAME, 'test_separated_csv', 'ts_{}'.format(int(f_id))
         ), test_data_list[i]
         ] for i, f_id in enumerate(test_ids)
     ]

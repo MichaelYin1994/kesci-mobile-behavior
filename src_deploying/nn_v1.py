@@ -17,15 +17,16 @@ from datetime import datetime
 
 import matplotlib.pyplot as plt
 import numpy as np
-from numpy.core.shape_base import block
 import pandas as pd
 import tensorflow as tf
 import tensorflow.keras.backend as K
 from scipy import signal
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 from sklearn.model_selection import KFold
 from tqdm import tqdm
 
 from dingtalk_remote_monitor import RemoteMonitorDingTalk
+from utils import custom_eval_metric, njit_f1, tf_custom_eval
 
 GLOBAL_RANDOM_SEED = 2912
 # np.random.seed(GLOBAL_RANDOM_SEED)
@@ -49,11 +50,8 @@ if gpus:
     except RuntimeError as e:
         print(e)
 ###############################################################################
-def custom_eval_metric(y_true, y_pred):
-    pass
 
-
-def random_crop():
+def random_crop(ts, crop_length):
     '''Random crop a segment of a time series.'''
     pass
 
@@ -89,7 +87,7 @@ def load_preprocess_single_ts(stage, target_length):
         if len(seq) != target_length:
             interp_seq = np.zeros((target_length, seq.shape[1]))
 
-            for i in range(seq.shape[1]):
+            for i in tf.range(seq.shape[1]):
                 interp_seq[:, i] = signal.resample(
                     seq[:, i], target_length
                 )
@@ -98,7 +96,7 @@ def load_preprocess_single_ts(stage, target_length):
         # Augment the time series
         # --------
         if stage == 'train':
-            pos = np.random.randint(5, target_length, 1)[0]
+            pos = np.random.randint(30, target_length, 1)[0]
             seq[pos:] = 0.0
 
         seq = tf.convert_to_tensor(
@@ -115,6 +113,7 @@ def load_preprocess_single_ts(stage, target_length):
         fcn, [f_path], (tf.float32, tf.int32)
     )
 
+    # Set the tensor shape to solve the UNKNOW shape problem
     def set_shape(full_name):
         seq, oht_label = tf_fcn(full_name)
 
@@ -169,9 +168,9 @@ def block_cascade(x, kernel_size=5):
     x = resnet_block_conv1d(x, 64, kernel_size)
 
     # STEP 2: Pooling
-    x = tf.keras.layers.GlobalAveragePooling1D()(x)
+    x_avg_pool = tf.keras.layers.GlobalAveragePooling1D()(x)
 
-    return x
+    return x_avg_pool
 
 
 def build_model(verbose=False, is_compile=True, **kwargs):
@@ -215,10 +214,10 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     )
 
     x = tf.keras.layers.Dense(512, activation='relu')(block_output)
-    x = tf.keras.layers.Dropout(0.3)(x)
+    x = tf.keras.layers.Dropout(0.5)(x)
 
     x = tf.keras.layers.Dense(128, activation='relu')(x)
-    x = tf.keras.layers.Dropout(0.3)(x)
+    x = tf.keras.layers.Dropout(0.5)(x)
 
     layer_output = tf.keras.layers.Dense(19, activation='softmax')(x)
 
@@ -233,33 +232,48 @@ def build_model(verbose=False, is_compile=True, **kwargs):
     if is_compile:
         model.compile(
             loss='categorical_crossentropy',
-            optimizer=tf.keras.optimizers.Adam(learning_rate), metrics=['acc']
+            optimizer=tf.keras.optimizers.Adam(learning_rate),
+            metrics=['acc', tf_custom_eval]
         )
 
     return model
 
+
 if __name__ == '__main__':
     # Global parameters
     # **********************
-    BATCH_SIZE = 128
-    NUM_EPOCHS = 256
-    EARLY_STOP_ROUNDS = 6
+    BATCH_SIZE = 1024
+    NUM_EPOCHS = 2048
+    EARLY_STOP_ROUNDS = 300
     N_FOLDS = 5
     TTA_ROUNDS = 20
+    VERBOSE = 0
 
     SEGMENT_LENGTH = 61
 
     TRAIN_PATH_NAME = '../data_tmp/train_separated_csv/'
+    MODEL_PATH_NAME = '../models/'
     MODEL_NAME = 'ResNet50_dataaug_rtx3090'
-    MODEL_LR = 0.0003
+    MODEL_LR = 0.0008
+    MODEL_LR_DECAY_RATE = 0.75
+    DECAY_LR_PATIENCE_ROUNDS = 40
     MODEL_LABEL_SMOOTHING = 0
 
-    IS_RANDOM_VISUALIZING = True
+    IS_RANDOM_VISUALIZING = False
     IS_SEND_MSG_TO_DINGTALK = False
 
     # Training preparing
     # **********************
     total_file_name_list = os.listdir(TRAIN_PATH_NAME)
+
+    # Meta DataFrame
+    total_meta_df = pd.DataFrame(None)
+    total_meta_df['fragment_id'] = [
+        int(item.split('_')[1]) for item in total_file_name_list
+    ]
+    total_meta_df['behavior_id'] = [
+        int(item[:-4].split('_')[-1]) for item in total_file_name_list
+    ]
     total_file_name_list = [
         os.path.join(TRAIN_PATH_NAME, item) for item in total_file_name_list
     ]
@@ -299,13 +313,13 @@ if __name__ == '__main__':
     # --------
     callbacks = [
         tf.keras.callbacks.EarlyStopping(
-            monitor='val_acc', mode='max',
+            monitor='val_tf_custom_eval', mode='max',
             verbose=1, patience=EARLY_STOP_ROUNDS,
             restore_best_weights=True),
         tf.keras.callbacks.ReduceLROnPlateau(
-                monitor='val_acc',
-                factor=0.7,
-                patience=20,
+                monitor='val_tf_custom_eval',
+                factor=MODEL_LR_DECAY_RATE,
+                patience=DECAY_LR_PATIENCE_ROUNDS,
                 min_lr=0.000003),
         RemoteMonitorDingTalk(
             is_send_msg=IS_SEND_MSG_TO_DINGTALK,
@@ -321,10 +335,19 @@ if __name__ == '__main__':
 
     # Training start
     # **********************
+    y_val_score_df = np.zeros((N_FOLDS, 5))
+    y_val_pred_proba_df = np.zeros(
+        (len(total_file_name_list), 19)
+    )
+    y_total_label_oht = tf.keras.utils.to_categorical(
+        total_meta_df['behavior_id'].values
+    )
+
     print('\n[INFO] {} NN training start...'.format(
         str(datetime.now())[:-4]))
     print('==================================')
-    for train_idx, valid_idx in fold.split(total_file_name_list, y=None):
+    for fold, (train_idx, valid_idx) in enumerate(fold.split(total_file_name_list, y=None)):
+
         # Destroy all graph nodes in GPU memory
         # --------
         K.clear_session()
@@ -358,14 +381,18 @@ if __name__ == '__main__':
         train_ts_ds = train_path_ds.map(
             load_process_train_ts, num_parallel_calls=mp.cpu_count()
         ).cache()
-        valid_ts_ds = train_path_ds.map(
+        valid_ts_ds = valid_path_ds.map(
             load_process_valid_ts, num_parallel_calls=mp.cpu_count()
         ).cache()
 
         train_ts_ds = train_ts_ds.batch(BATCH_SIZE)
-        train_ts_ds = train_ts_ds.prefetch(buffer_size=int(BATCH_SIZE * 8))
+        train_ts_ds = train_ts_ds.prefetch(
+            buffer_size=int(BATCH_SIZE * 4)
+        )
         valid_ts_ds = valid_ts_ds.batch(BATCH_SIZE)
-        valid_ts_ds = valid_ts_ds.prefetch(buffer_size=int(BATCH_SIZE * 8))
+        valid_ts_ds = valid_ts_ds.prefetch(
+            buffer_size=int(BATCH_SIZE * 4)
+        )
 
         # build & train model
         # --------
@@ -380,10 +407,69 @@ if __name__ == '__main__':
             epochs=NUM_EPOCHS,
             validation_data=valid_ts_ds,
             callbacks=callbacks,
-            verbose=1
+            verbose=VERBOSE
         )
 
         # Evaulate the preformance
         # --------
+        y_pred_proba = model.predict(
+            valid_ts_ds
+        )
+        y_pred_label = np.argmax(y_pred_proba, axis=1)
+        y_true_label = np.argmax(y_total_label_oht[valid_idx], axis=1)
+        y_val_pred_proba_df[valid_idx] = y_pred_proba
+
+        val_f1 = f1_score(
+            y_true_label.reshape(-1, 1), y_pred_label.reshape(-1, 1), average='macro'
+        )
+        val_acc = accuracy_score(
+            y_true_label.reshape(-1, 1), y_pred_label.reshape(-1, 1)
+        )
+        val_custom = custom_eval_metric(
+            y_total_label_oht[valid_idx], y_pred_proba
+        )
+        val_roc_auc = roc_auc_score(
+            y_total_label_oht[valid_idx], y_pred_proba
+        )
+
+        y_val_score_df[fold, 0] = fold
+        y_val_score_df[fold, 1] = val_f1
+        y_val_score_df[fold, 2] = val_acc
+        y_val_score_df[fold, 3] = val_custom
+        y_val_score_df[fold, 4] = val_roc_auc
+
+        print('-- {} folds {}({}), valid f1: {:.5f}, acc {:5f}, custom: {:.5f}, roc-auc: {:.5f}'.format(
+            str(datetime.now())[:-4], fold+1, N_FOLDS,
+            y_val_score_df[fold, 1],
+            y_val_score_df[fold, 2],
+            y_val_score_df[fold, 3],
+            y_val_score_df[fold, 4]
+            )
+        )
+
+        # Save model to the local path
+        # --------
+
+    # Post processing and log saving
+    y_val_pred_proba_df = pd.DataFrame(
+        y_val_pred_proba_df, columns=['label_{}'.format(i) for i in range(19)]
+    )
+    y_val_pred_proba_df['behavior_id'] = total_meta_df['behavior_id'].values
+    y_val_pred_proba_df['fragment_id'] = total_meta_df['fragment_id'].values
+
+    y_val_score_df = pd.DataFrame(
+        y_val_score_df,
+        columns=['fold', 'f1', 'acc', 'custom', 'roc-auc']
+    )
+
+    print(
+        '-- {} TOTAL, valid f1: {:.5f}, acc {:5f}, custom: {:.5f}, roc-auc: {:.5f}'.format(
+            str(datetime.now())[:-4],
+            y_val_score_df['f1'].mean(),
+            y_val_score_df['acc'].mean(),
+            y_val_score_df['custom'].mean(),
+            y_val_score_df['roc-auc'].mean(),
+        )
+    )
 
     print('==================================')
