@@ -22,7 +22,7 @@ import tensorflow as tf
 import tensorflow.keras.backend as K
 from scipy import signal
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, StratifiedKFold
 from tqdm import tqdm
 
 from dingtalk_remote_monitor import RemoteMonitorDingTalk
@@ -258,6 +258,7 @@ if __name__ == '__main__':
     MODEL_LR_DECAY_RATE = 0.75
     DECAY_LR_PATIENCE_ROUNDS = 40
     MODEL_LABEL_SMOOTHING = 0
+    FOLD_STRATEGY = 'kfold'
 
     IS_RANDOM_VISUALIZING = False
     IS_SEND_MSG_TO_DINGTALK = False
@@ -329,8 +330,19 @@ if __name__ == '__main__':
 
     # Fold strategy
     # --------
-    fold = KFold(
+    if FOLD_STRATEGY == 'kfold':
+        folds = KFold(
             n_splits=N_FOLDS, shuffle=True, random_state=GLOBAL_RANDOM_SEED
+        )
+        fold_generator = folds.split(
+            np.arange(0, len(total_meta_df)), total_meta_df['behavior_id'].values
+        )
+    elif FOLD_STRATEGY == 'stratifiedkfold':
+        folds = StratifiedKFold(
+            n_splits=N_FOLDS, shuffle=True, random_state=GLOBAL_RANDOM_SEED
+        )
+        fold_generator = folds.split(
+            np.arange(0, len(total_meta_df)), total_meta_df['behavior_id'].values
         )
 
     # Training start
@@ -346,7 +358,7 @@ if __name__ == '__main__':
     print('\n[INFO] {} NN training start...'.format(
         str(datetime.now())[:-4]))
     print('==================================')
-    for fold, (train_idx, valid_idx) in enumerate(fold.split(total_file_name_list, y=None)):
+    for fold, (train_idx, valid_idx) in enumerate(fold_generator):
 
         # Destroy all graph nodes in GPU memory
         # --------
@@ -449,27 +461,80 @@ if __name__ == '__main__':
 
         # Save model to the local path
         # --------
+        fold_path = os.path.join(
+                MODEL_PATH_NAME, 'nn_v1'
+            )
+        if 'nn_v1' not in os.listdir(MODEL_PATH_NAME):
+            os.mkdir(fold_path)
 
-    # Post processing and log saving
-    y_val_pred_proba_df = pd.DataFrame(
-        y_val_pred_proba_df, columns=['label_{}'.format(i) for i in range(19)]
+        model_name = 'nn_v1_fold_{}.h5'.format(fold)
+        if model_name in os.listdir(fold_path):
+            os.remove(model_name)
+
+        model.save(
+            os.path.join(fold_path, model_name)
+        )
+
+    # Post evaluation
+    # --------
+    y_pred_label = np.argmax(y_val_pred_proba_df, axis=1)
+
+    val_f1 = f1_score(
+        total_meta_df['behavior_id'].values,
+        y_pred_label.reshape(-1, 1),
+        average='macro'
     )
-    y_val_pred_proba_df['behavior_id'] = total_meta_df['behavior_id'].values
-    y_val_pred_proba_df['fragment_id'] = total_meta_df['fragment_id'].values
+    val_acc = accuracy_score(
+        total_meta_df['behavior_id'].values,
+        y_pred_label.reshape(-1, 1)
+    )
+    val_custom = custom_eval_metric(
+        y_total_label_oht, y_val_pred_proba_df
+    )
+    val_roc_auc = roc_auc_score(
+        y_total_label_oht, y_val_pred_proba_df
+    )
+    print(
+        '-- {} TOTAL, valid f1: {:.5f}, acc {:5f}, custom: {:.5f}, roc-auc: {:.5f}'.format(
+            str(datetime.now())[:-4],
+            val_f1, val_acc, val_custom, val_roc_auc,
+        )
+    )
+    # Log saving
+    # --------
+    if 'logs' not in os.listdir('./'):
+        os.mkdir('logs')
 
     y_val_score_df = pd.DataFrame(
         y_val_score_df,
         columns=['fold', 'f1', 'acc', 'custom', 'roc-auc']
     )
 
-    print(
-        '-- {} TOTAL, valid f1: {:.5f}, acc {:5f}, custom: {:.5f}, roc-auc: {:.5f}'.format(
-            str(datetime.now())[:-4],
-            y_val_score_df['f1'].mean(),
-            y_val_score_df['acc'].mean(),
-            y_val_score_df['custom'].mean(),
-            y_val_score_df['roc-auc'].mean(),
-        )
+    file_name = '{}_valacc_{}_f1_{}_custom_{}'.format(
+        len(os.listdir('./logs')) + 1,
+        str(np.round(val_acc, 4)).split('.')[1],
+        str(np.round(val_f1, 4)).split('.')[1],
+        str(np.round(val_custom, 4)).split('.')[1]
+    )
+    y_val_score_df.to_csv(
+        os.path.join('./logs', file_name + '.csv'), index=False
+    )
+
+    # Post processing
+    # --------
+    if 'oof' not in os.listdir('./'):
+        os.mkdir('oof')
+
+    y_val_pred_proba_df = pd.DataFrame(
+        y_val_pred_proba_df, columns=['label_{}'.format(i) for i in range(19)]
+    )
+    y_val_pred_proba_df['behavior_id'] = total_meta_df['behavior_id'].values
+    y_val_pred_proba_df['fragment_id'] = total_meta_df['fragment_id'].values
+
+    y_val_pred_proba_df.to_csv(file_name + '_oof.csv', index=False)
+
+    y_val_pred_proba_df.to_csv(
+        os.path.join('./oof', file_name + '.csv'), index=False
     )
 
     print('==================================')
