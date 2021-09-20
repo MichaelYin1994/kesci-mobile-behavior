@@ -51,14 +51,54 @@ if gpus:
         print(e)
 ###############################################################################
 
-def random_crop(ts, crop_length):
+def random_crop(ts, cropped_length):
     '''Random crop a segment of a time series.'''
+    window_size = cropped_length // 2
+    length_ts = len(ts)
+
+    # Generate a random position
+    rand_pos = np.random.randint(
+        window_size,
+        int(length_ts - window_size),
+        1
+    )[0]
+
+    # Crop the time series
+    ts[int(rand_pos - window_size):int(rand_pos + window_size)] = 0
+
+    return ts
+
+
+def random_scale(ts, n_dim, sigma=0.1):
+    '''Random scale the time series.'''
     pass
 
 
-def random_shift():
-    '''Random shift time series.'''
-    pass
+# def random_shift():
+#     '''Random shift time series.'''
+#     pass
+
+
+def preprocess_single_ts(ts, stage, target_length):
+    '''Preprocess a single time series.'''
+    # Get the label and interpolate time series to the fixed length
+    # --------
+    if len(ts) != target_length:
+        interp_seq = np.zeros((target_length, ts.shape[1]))
+
+        for i in tf.range(ts.shape[1]):
+            interp_seq[:, i] = signal.resample(
+                ts[:, i], target_length
+            )
+        ts = interp_seq
+
+    # Augment the time series
+    # --------
+    if stage == 'train':
+        cropped_length = np.random.randint(2, target_length // 3, 1)[0]
+        ts = random_crop(ts, cropped_length)
+
+    return ts
 
 
 def load_preprocess_single_ts(stage, target_length):
@@ -76,7 +116,7 @@ def load_preprocess_single_ts(stage, target_length):
         df['mod'] = np.sqrt(df['acc_x']**2 + df['acc_y']**2 + df['acc_z']**2)
         df['modg'] = np.sqrt(df['acc_xg']**2 + df['acc_yg']**2 + df['acc_zg']**2)
 
-        # Get the label and interpolate time series to the fixed length
+        # Preprocess
         # --------
         seq = df.drop(['fragment_id', 'behavior_id', 'time_point'], axis=1).values
 
@@ -84,21 +124,12 @@ def load_preprocess_single_ts(stage, target_length):
         oht_label = np.zeros((19, ), dtype=np.int32)
         oht_label[label] = 1
 
-        if len(seq) != target_length:
-            interp_seq = np.zeros((target_length, seq.shape[1]))
+        seq = preprocess_single_ts(
+            seq, stage, target_length
+        )
 
-            for i in tf.range(seq.shape[1]):
-                interp_seq[:, i] = signal.resample(
-                    seq[:, i], target_length
-                )
-            seq = interp_seq
-
-        # Augment the time series
+        # Convert the ts to the Tensorflow tensor object
         # --------
-        if stage == 'train':
-            pos = np.random.randint(10, target_length, 1)[0]
-            seq[pos:] = 0.0
-
         seq = tf.convert_to_tensor(
             seq, dtype=tf.float32
         )
@@ -108,7 +139,7 @@ def load_preprocess_single_ts(stage, target_length):
 
         return seq, oht_label
 
-    # Transform to the tf_fcn object
+    # Transform py_fcn to the tf_fcn object
     tf_fcn = lambda f_path: tf.py_function(
         fcn, [f_path], (tf.float32, tf.int32)
     )
@@ -233,7 +264,7 @@ def build_model(verbose=False, is_compile=True, **kwargs):
         model.compile(
             loss='categorical_crossentropy',
             optimizer=tf.keras.optimizers.Adam(learning_rate),
-            metrics=['acc', tf_custom_eval]
+            metrics=['acc']
         )
 
     return model
@@ -246,7 +277,6 @@ if __name__ == '__main__':
     NUM_EPOCHS = 2048
     EARLY_STOP_ROUNDS = 300
     N_FOLDS = 5
-    TTA_ROUNDS = 20
     VERBOSE = 0
 
     SEGMENT_LENGTH = 61
@@ -260,12 +290,12 @@ if __name__ == '__main__':
     MODEL_LABEL_SMOOTHING = 0
     FOLD_STRATEGY = 'kfold'
 
-    IS_RANDOM_VISUALIZING = False
+    IS_RANDOM_VISUALIZING = True
     IS_SEND_MSG_TO_DINGTALK = False
 
     # Training preparing
     # **********************
-    total_file_name_list = os.listdir(TRAIN_PATH_NAME)[:2]
+    total_file_name_list = os.listdir(TRAIN_PATH_NAME)
 
     # Meta DataFrame
     total_meta_df = pd.DataFrame(None)

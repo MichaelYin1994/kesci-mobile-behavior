@@ -12,16 +12,18 @@ Helper functions.
 import warnings
 from datetime import datetime
 
+import numba
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import numba
 from numba import njit
+from sklearn.metrics import auc, precision_recall_curve
 from tqdm import tqdm
 
-from sklearn.metrics import auc, precision_recall_curve
-
 warnings.filterwarnings('ignore')
+
+###############################################################################
+SEGMENT_LENGTH = 61
 
 def custom_eval_metric(y_true, y_pred):
     '''Custom evaluate metric.'''
@@ -122,6 +124,15 @@ class LiteModel:
         经过转换的Keras模型。
         '''
         converter = tf.lite.TFLiteConverter.from_keras_model(kmodel)
+
+        # converter.experimental_new_converter = False
+        # converter.optimizations = [tf.lite.Optimize.OPTIMIZE_FOR_SIZE]
+        converter.target_spec.supported_ops = [
+            tf.lite.OpsSet.TFLITE_BUILTINS,
+            tf.lite.OpsSet.SELECT_TF_OPS
+        ]
+        converter.allow_custom_ops = True
+
         tflite_model = converter.convert()
         return LiteModel(tf.lite.Interpreter(model_content=tflite_model))
 
