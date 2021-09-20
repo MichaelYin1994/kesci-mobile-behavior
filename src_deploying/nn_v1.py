@@ -96,7 +96,7 @@ def load_preprocess_single_ts(stage, target_length):
         # Augment the time series
         # --------
         if stage == 'train':
-            pos = np.random.randint(30, target_length, 1)[0]
+            pos = np.random.randint(10, target_length, 1)[0]
             seq[pos:] = 0.0
 
         seq = tf.convert_to_tensor(
@@ -265,7 +265,7 @@ if __name__ == '__main__':
 
     # Training preparing
     # **********************
-    total_file_name_list = os.listdir(TRAIN_PATH_NAME)
+    total_file_name_list = os.listdir(TRAIN_PATH_NAME)[:2]
 
     # Meta DataFrame
     total_meta_df = pd.DataFrame(None)
@@ -299,7 +299,8 @@ if __name__ == '__main__':
             ax.set_ylabel('Value', fontsize=10)
             ax.set_title(
                 'Class label: {}'.format(item[1].numpy()),
-                fontsize=10)
+                fontsize=10
+            )
             ax.tick_params(axis="both", labelsize=10)
 
             tmp = item[0].numpy()
@@ -314,11 +315,11 @@ if __name__ == '__main__':
     # --------
     callbacks = [
         tf.keras.callbacks.EarlyStopping(
-            monitor='val_tf_custom_eval', mode='max',
+            monitor='val_acc', mode='max',
             verbose=1, patience=EARLY_STOP_ROUNDS,
             restore_best_weights=True),
         tf.keras.callbacks.ReduceLROnPlateau(
-                monitor='val_tf_custom_eval',
+                monitor='val_acc',
                 factor=MODEL_LR_DECAY_RATE,
                 patience=DECAY_LR_PATIENCE_ROUNDS,
                 min_lr=0.000003),
@@ -469,7 +470,11 @@ if __name__ == '__main__':
 
         model_name = 'nn_v1_fold_{}.h5'.format(fold)
         if model_name in os.listdir(fold_path):
-            os.remove(model_name)
+            os.remove(
+                os.path.join(
+                    MODEL_PATH_NAME, 'nn_v1', model_name
+                )
+            )
 
         model.save(
             os.path.join(fold_path, model_name)
