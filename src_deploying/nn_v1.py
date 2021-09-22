@@ -74,9 +74,9 @@ def random_scale(ts, n_dim, sigma=0.1):
     pass
 
 
-# def random_shift():
-#     '''Random shift time series.'''
-#     pass
+def random_shift():
+    '''Random shift time series.'''
+    pass
 
 
 def preprocess_single_ts(ts, stage, target_length):
@@ -415,7 +415,7 @@ if __name__ == '__main__':
         # Construct the loading pipeline
         # --------
         load_process_train_ts = load_preprocess_single_ts(
-            stage='train', target_length=SEGMENT_LENGTH
+            stage='valid', target_length=SEGMENT_LENGTH
         )
         load_process_valid_ts = load_preprocess_single_ts(
             stage='valid', target_length=SEGMENT_LENGTH
@@ -535,6 +535,7 @@ if __name__ == '__main__':
             val_f1, val_acc, val_custom, val_roc_auc,
         )
     )
+
     # Log saving
     # --------
     if 'logs' not in os.listdir('./'):
@@ -565,8 +566,6 @@ if __name__ == '__main__':
     )
     y_val_pred_proba_df['behavior_id'] = total_meta_df['behavior_id'].values
     y_val_pred_proba_df['fragment_id'] = total_meta_df['fragment_id'].values
-
-    y_val_pred_proba_df.to_csv(file_name + '_oof.csv', index=False)
 
     y_val_pred_proba_df.to_csv(
         os.path.join('./oof', file_name + '.csv'), index=False

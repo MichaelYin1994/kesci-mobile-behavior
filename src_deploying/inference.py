@@ -51,6 +51,7 @@ if gpus:
         logical_gpus = tf.config.experimental.list_logical_devices('GPU')
     except RuntimeError as e:
         print(e)
+
 ###############################################################################
 if SERVED_MODEL == 'nn_v1':
     from nn_v1 import build_model, preprocess_single_ts
@@ -143,7 +144,7 @@ class InferServer():
 if __name__ == '__main__':
     # Global parameters
     # **********************
-    TTA_ROUNDS = 3
+    TTA_ROUNDS = 5
     SEGMENT_LENGTH = 61
     IS_QUANTIZATION = True
     TEST_PATH_NAME = '../data_tmp/test_separated_csv/'
@@ -184,7 +185,7 @@ if __name__ == '__main__':
     predicted_label_list = []
 
     for file_name in tqdm(test_file_name_list):
-        # Stage 1: Fetch data from source
+        # Stage 1: Fetch data from a source
         # --------
         ts_df = pd.read_csv(file_name)
 
